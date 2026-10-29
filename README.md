@@ -4,19 +4,36 @@ Decision-support pemilihan vendor untuk Firaza (Capstone Dicoding Bootcamp Batch
 
 Sistem memprediksi **P(berhasil)** setiap vendor kandidat untuk suatu kebutuhan (barang datang ≤ deadline **dan** cacat ≤ 3%), lalu meranking kandidat dengan skor berbobot (keberhasilan, harga, kecepatan). Gemini hanya **menjelaskan** hasil ranking; Gemini tidak menentukan ranking.
 
-> Status: kerangka proyek (Minggu 1). Sebagian besar modul masih berupa stub.
+> Status (Minggu 1): generator data, EDA awal, modul fitur dan ranking sudah jalan. Selama model belum dilatih, ranking memakai baseline rata-rata historis. Modul `explain`, `storage`, API, dan Streamlit masih kerangka.
 
 ## Struktur
 
 ```
 ├── data/                 # CSV hasil generator
+├── docs/asumsi_data.md   # kamus data, mekanisme generator, asumsi, keterbatasan
 ├── generator/generate.py # generator dataset sintetis (seed tetap)
-├── core/                 # logika bersama: features, ranking, explain (Gemini), storage (Supabase)
-├── notebooks/            # 01_eda.ipynb, 02_training.ipynb
+├── core/
+│   ├── seasons.py        # kalender musim ramai (Ramadan-Lebaran, musim nikah)
+│   ├── data.py           # memuat CSV
+│   ├── features.py       # label + fitur, rekam jejak vendor anti-leakage
+│   ├── ranking.py        # saringan kandidat, skor berbobot, recommend()
+│   ├── explain.py        # penjelasan Gemini (Minggu 3)
+│   └── storage.py        # riwayat ke Supabase (Minggu 4)
+├── notebooks/01_eda.ipynb
 ├── models/               # model.joblib hasil training
 ├── app/streamlit_app.py  # antarmuka Streamlit
 ├── api/main.py           # FastAPI: POST /api/v1/recommend
 └── tests/                # pytest
+```
+
+## Contoh pemakaian `core`
+
+```python
+from core.ranking import recommend
+
+hasil = recommend({"material_id": "M01", "qty": 200, "hari_tersedia": 14, "budget": 9_000_000},
+                  preset="Seimbang", top_k=3)
+hasil["top"]   # 3 vendor teratas: harga, lead time, p_berhasil, skor, flag data_terbatas
 ```
 
 ## Menjalankan secara lokal
@@ -45,7 +62,7 @@ pytest
 
 ## Asumsi data
 
-Dataset sepenuhnya **sintetis**, dibuat oleh `generator/generate.py` (numpy/pandas, seed tetap), bukan ditulis LLM. Rincian asumsi (jumlah vendor, efek musim ramai, kalibrasi harga) akan dilengkapi bersama generator.
+Dataset sepenuhnya **sintetis**, dibuat oleh `generator/generate.py` (numpy/pandas, seed tetap), bukan ditulis LLM: 30 vendor, 15 material, 109 penawaran, 6.075 transaksi (Okt 2024 – Sep 2026), dengan efek musim ramai dan trade-off harga vs keandalan. Kamus data, mekanisme, dan keterbatasannya ada di [docs/asumsi_data.md](docs/asumsi_data.md). Hasil eksplorasi ada di [notebooks/01_eda.ipynb](notebooks/01_eda.ipynb).
 
 ## Lisensi dan SBOM
 
@@ -63,6 +80,8 @@ Proyek ini berlisensi [MIT](LICENSE). Semua dependensi langsung berlisensi permi
 | pg8000 | BSD-3-Clause |
 | python-dotenv | BSD-3-Clause |
 | pytest (dev) | MIT |
+| jupyter, nbformat, nbclient, ipykernel (dev) | BSD-3-Clause |
+| matplotlib (dev) | PSF-based (permisif) |
 
 ## Sitasi
 

@@ -1,0 +1,16 @@
+material_id,nama_material,kategori,satuan,harga_ref_min,harga_ref_max,lead_time_min,lead_time_max,qty_median
+M01,Handuk mandi 70x140 cm,tekstil,pcs,35000,65000,7,14,150
+M02,Handuk muka 30x30 cm,tekstil,pcs,6000,12000,5,10,300
+M03,Sajadah polos dewasa,tekstil,pcs,40000,80000,7,14,120
+M04,Sajadah travel lipat,tekstil,pcs,20000,40000,7,12,100
+M05,Mukena katun dewasa,tekstil,pcs,85000,160000,10,18,60
+M06,Kotak hampers rigid box,packaging,pcs,9000,22000,5,10,200
+M07,Kardus pengiriman,packaging,pcs,2000,5000,2,5,400
+M08,Paper bag,packaging,pcs,3000,8000,3,7,250
+M09,Tas spunbond,packaging,pcs,2500,6000,4,8,250
+M10,Bubble wrap 125 cm x 50 m,packaging,roll,45000,95000,2,4,10
+M11,Plastik OPP,packaging,pcs,300,1000,2,4,1000
+M12,Pita satin,aksesoris,roll,5000,15000,2,5,40
+M13,Kartu ucapan cetak,aksesoris,pcs,500,2000,3,6,300
+M14,Jasa bordir nama,jasa,pcs,5000,15000,4,9,120
+M15,Jasa printing sajadah,jasa,pcs,10000,25000,5,10,100
