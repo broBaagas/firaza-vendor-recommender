@@ -17,6 +17,73 @@ Sistem memprediksi **P(berhasil)** setiap vendor kandidat untuk suatu kebutuhan 
 
 Rincian: [docs/evaluasi_model.md](docs/evaluasi_model.md).
 
+## Mencoba versi awal
+
+Versi ini sudah bisa dicoba **tanpa API key dan tanpa database**. Data sintetis (`data/`) dan model v1 (`models/model.joblib`) sudah ikut di repo, jadi tidak perlu menjalankan generator atau training. Diuji dengan Python 3.14 di Windows.
+
+### 1. Siapkan lingkungan
+
+```powershell
+git clone https://github.com/broBaagas/firaza-vendor-recommender.git
+cd firaza-vendor-recommender
+python -m venv .venv
+.venv\Scripts\activate              # Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+`scikit-learn` dan `lightgbm` dikunci ke versi tertentu karena `model.joblib` hanya bisa dimuat dengan versi yang sama.
+
+### 2. Coba lewat aplikasi web (Streamlit)
+
+```powershell
+streamlit run app/streamlit_app.py
+```
+
+Buka http://localhost:8501, lalu:
+
+1. Di tab **Rekomendasi**, pilih material, isi jumlah dan hari tersedia sampai deadline (nilai awal sudah terisi), lalu klik **Cari rekomendasi vendor**.
+2. Ganti **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
+3. Centang **Batasi total budget** untuk menyaring vendor yang total harganya melebihi budget.
+4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor dan daftar penawaran per material.
+
+Yang ditampilkan: kartu 3 vendor teratas, ringkasan perbandingan dengan vendor termurah, grafik harga vs peluang berhasil, dan tabel semua kandidat. Vendor dengan < 5 transaksi ditandai ⚠️ data terbatas.
+
+### 3. Coba lewat Python
+
+```python
+import pandas as pd
+from core.ranking import recommend
+
+r = recommend({"material_id": "M03", "qty": 150, "hari_tersedia": 12}, preset="Seimbang")
+pd.DataFrame(r["ranking"])[["peringkat", "nama_vendor", "harga_satuan", "lead_time_janji", "p_berhasil", "skor"]]
+```
+
+Kebutuhan berisi `material_id`, `qty`, `hari_tersedia`, dan opsional `budget` (total, Rp). Preset: `"Seimbang"`, `"Termurah"`, `"Tercepat"`, atau bobot sendiri lewat `weights={"w_berhasil": .., "w_harga": .., "w_cepat": ..}`.
+
+| Kode | Material | Lead time wajar (hari) | Kode | Material | Lead time wajar (hari) |
+|---|---|---|---|---|---|
+| M01 | Handuk mandi 70x140 cm | 7–14 | M09 | Tas spunbond | 4–8 |
+| M02 | Handuk muka 30x30 cm | 5–10 | M10 | Bubble wrap 125 cm x 50 m (roll) | 2–4 |
+| M03 | Sajadah polos dewasa | 7–14 | M11 | Plastik OPP | 2–4 |
+| M04 | Sajadah travel lipat | 7–12 | M12 | Pita satin (roll) | 2–5 |
+| M05 | Mukena katun dewasa | 10–18 | M13 | Kartu ucapan cetak | 3–6 |
+| M06 | Kotak hampers rigid box | 5–10 | M14 | Jasa bordir nama | 4–9 |
+| M07 | Kardus pengiriman | 2–5 | M15 | Jasa printing sajadah | 5–10 |
+| M08 | Paper bag | 3–7 | | | |
+
+### Cara membaca hasil
+
+- **P(berhasil)**: peluang barang datang ≤ deadline **dan** cacat ≤ 3%, hasil prediksi model v1.
+- **Skor**: gabungan P(berhasil), harga murah, dan lead time cepat sesuai bobot preset (lihat [Skor ranking](#skor-ranking)).
+- **Data terbatas**: vendor dengan < 5 transaksi; prediksinya kurang pasti.
+- Nama vendor ("Tekstil F", "Packaging C", …) dan semua transaksi **fiktif**, berasal dari generator data sintetis.
+
+### Belum tersedia di versi ini
+
+- Penjelasan rekomendasi oleh Gemini (Minggu 3). Ringkasan yang tampil saat ini masih teks template.
+- Inference API `POST /api/v1/recommend` (Minggu 3). Endpoint sudah ada, tetapi masih mengembalikan 501.
+- Penyimpanan riwayat rekomendasi ke Supabase dan live URL (Minggu 4).
+
 ## Struktur
 
 ```
@@ -53,19 +120,16 @@ hasil = recommend({"material_id": "M01", "qty": 200, "hari_tersedia": 14, "budge
 hasil["top"]   # 3 vendor teratas: harga, lead time, p_berhasil, skor, flag data_terbatas
 ```
 
-## Menjalankan secara lokal
+## Pengembangan
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows (Linux/macOS: source .venv/bin/activate)
-pip install -r requirements-dev.txt
-copy .env.example .env          # lalu isi GEMINI_API_KEY, SUPABASE_URL, SUPABASE_KEY
+pip install -r requirements-dev.txt   # + pytest, jupyter, matplotlib
+copy .env.example .env                # isi GEMINI_API_KEY, SUPABASE_URL, SUPABASE_KEY (belum dipakai di versi ini)
 
-python -m generator.generate    # buat dataset sintetis ke data/
-python -m training.train        # latih ulang model v1 (±1,5 menit)
-streamlit run app/streamlit_app.py
-uvicorn api.main:app --reload
-pytest
+python -m generator.generate    # buat ulang dataset sintetis ke data/ (deterministik, ±8 detik)
+python -m training.train        # latih ulang model v1 + metrics.json (±1,5 menit)
+pytest                          # 30 tes: generator, fitur/anti-leakage, ranking, training, aplikasi
+uvicorn api.main:app --reload   # kerangka API (/recommend belum aktif)
 ```
 
 ## Skor ranking
