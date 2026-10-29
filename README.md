@@ -4,7 +4,7 @@ Decision-support pemilihan vendor untuk Firaza (Capstone Dicoding Bootcamp Batch
 
 Sistem memprediksi **P(berhasil)** setiap vendor kandidat untuk suatu kebutuhan (barang datang ≤ deadline **dan** cacat ≤ 3%), lalu meranking kandidat dengan skor berbobot (keberhasilan, harga, kecepatan). Gemini hanya **menjelaskan** hasil ranking; Gemini tidak menentukan ranking.
 
-> Status (Minggu 2): data, fitur, model v1 (`v1-random_forest`), dan ranking sudah jalan. Modul `explain`, `storage`, API, dan Streamlit masih kerangka.
+> Status (Minggu 2): data, fitur, model v1 (`v1-random_forest`), ranking, dan Streamlit versi awal sudah jalan. Modul `explain` (Gemini), `storage` (Supabase), dan API masih kerangka.
 
 ## Hasil model v1
 
