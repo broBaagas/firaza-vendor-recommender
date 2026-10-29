@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Artefak besar / sementara
+*.log
+.DS_Store
+Thumbs.db
+
+# Data sintetis dibuat ulang lewat generator; sifat tersembunyi vendor tidak di-commit
+data/*_hidden.csv
