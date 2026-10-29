@@ -11,6 +11,7 @@ Asumsi dan kamus data: docs/asumsi_data.md.
 Jalankan: python -m generator.generate
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -64,6 +65,8 @@ PEAK_QTY_MULT = 1.4
 GROWTH_24M = 0.30
 INFLATION_PER_MONTH = 0.004
 ROLL_DEFECT_MULT = 0.25
+DEFECT_BATCH_SIGMA = 0.4
+EARLY_N, EARLY_P = 2, 0.3  # barang tepat janji datang 0-2 hari lebih cepat
 
 
 def _sigmoid(x):
@@ -72,6 +75,81 @@ def _sigmoid(x):
 
 def _logit(p):
     return np.log(p / (1.0 - p))
+
+
+def _ontime_prob(h, m, qty: int, date: pd.Timestamp, is_pk: bool) -> float:
+    """Peluang vendor tepat janji: keandalan + drift, turun jika melebihi kapasitas atau musim ramai."""
+    start, end = pd.Timestamp(START_DATE), pd.Timestamp(END_DATE)
+    frac = (date - start).days / (end - start).days
+    logit = _logit(h.true_reliability) + h.drift_logit * (frac - 0.5)
+    logit -= 0.8 * max(0.0, qty / (h.capacity_factor * m.qty_median) - 1.0)
+    if is_pk:
+        logit -= 1.5 * h.peak_sensitivity
+    return float(_sigmoid(logit))
+
+
+def _late_lambda(h, is_pk: bool) -> float:
+    """Rata-rata hari telat tambahan (di atas 1 hari) jika vendor tidak tepat janji."""
+    return 1.0 + 3.0 * (1 - h.true_reliability) + (1.5 if is_pk else 0.0)
+
+
+def _defect_scale(h, m, is_pk: bool) -> float:
+    """Tingkat cacat sebelum variasi per batch. Lebih tinggi saat musim ramai.
+    Barang per roll jarang cacat dan qty-nya kecil (1 roll cacat dari 10 = 10%), jadi diturunkan."""
+    p = h.true_defect_rate * (1 + 0.5 * h.peak_sensitivity * is_pk)
+    return p * ROLL_DEFECT_MULT if m.satuan == "roll" else p
+
+
+def _binom_cdf(k: int, n: int, p: float) -> float:
+    if k >= n:
+        return 1.0
+    if p <= 0:
+        return 1.0
+    i = np.arange(k + 1)
+    log_terms = (gammaln(n + 1) - gammaln(i + 1) - gammaln(n - i + 1)
+                 + i * np.log(p) + (n - i) * np.log1p(-p))
+    return float(min(1.0, np.exp(log_terms).sum()))
+
+
+def _poisson_cdf(k: int, lam: float) -> float:
+    if k < 0:
+        return 0.0
+    i = np.arange(k + 1)
+    return float(np.exp(-lam + i * np.log(lam) - gammaln(i + 1)).sum())
+
+
+_GH_NODES, _GH_WEIGHTS = np.polynomial.hermite_e.hermegauss(40)
+_GH_WEIGHTS = _GH_WEIGHTS / _GH_WEIGHTS.sum()
+gammaln = np.vectorize(math.lgamma, otypes=[float])
+
+
+def true_success_prob(vendor_id: str, material_id: str, qty: int, lead_time_janji: int,
+                      hari_tersedia: int, tanggal, hidden: pd.DataFrame, materials: pd.DataFrame,
+                      defect_threshold: float = 0.03) -> float:
+    """P(berhasil) SEBENARNYA menurut mekanisme generator (dihitung eksak, bukan diundi).
+
+    Memakai sifat tersembunyi vendor, jadi HANYA untuk evaluasi ranking (ground truth untuk
+    semua kandidat, termasuk vendor yang tidak dipilih di data historis).
+    """
+    h = hidden.set_index("vendor_id").loc[vendor_id] if "vendor_id" in hidden.columns else hidden.loc[vendor_id]
+    m = materials.set_index("material_id").loc[material_id]
+    d = pd.Timestamp(tanggal)
+    is_pk = bool(is_peak([d])[0])
+
+    # Tepat deadline: (tepat janji dan janji - B <= deadline) atau (telat dan janji + 1 + Poisson <= deadline).
+    p_on = _ontime_prob(h, m, qty, d, is_pk)
+    b_pmf = [math.comb(EARLY_N, b) * EARLY_P ** b * (1 - EARLY_P) ** (EARLY_N - b) for b in range(EARLY_N + 1)]
+    p_early_ok = sum(p for b, p in enumerate(b_pmf) if lead_time_janji - b <= hari_tersedia)
+    p_late_ok = _poisson_cdf(hari_tersedia - lead_time_janji - 1, _late_lambda(h, is_pk))
+    p_time = p_on * p_early_ok + (1 - p_on) * p_late_ok
+
+    # Cacat <= batas: rata-rata Binomial CDF atas variasi lognormal per batch (kuadratur Gauss-Hermite).
+    k = math.floor(defect_threshold * qty + 1e-9)
+    scale = _defect_scale(h, m, is_pk)
+    p_def = sum(w * _binom_cdf(k, qty, min(scale * math.exp(DEFECT_BATCH_SIGMA * z), 0.5))
+                for z, w in zip(_GH_NODES, _GH_WEIGHTS))
+
+    return p_time * p_def  # waktu dan cacat diundi independen
 
 
 def _round_price(price: float) -> int:
@@ -188,8 +266,7 @@ def generate_transactions(rng: np.random.Generator, vendors: pd.DataFrame, mater
     dates = _order_dates(rng)
     peak = is_peak(dates)
     n = len(dates)
-    start, end = pd.Timestamp(START_DATE), pd.Timestamp(END_DATE)
-    total_days = (end - start).days
+    end = pd.Timestamp(END_DATE)
 
     mat = materials.set_index("material_id")
     hid = hidden.set_index("vendor_id")
@@ -227,24 +304,14 @@ def generate_transactions(rng: np.random.Generator, vendors: pd.DataFrame, mater
         qty = max(qty, int(o.moq))
 
         # Hasil pengiriman.
-        frac = (d - start).days / total_days
-        logit = _logit(h.true_reliability) + h.drift_logit * (frac - 0.5)
-        capacity = h.capacity_factor * m.qty_median
-        logit -= 0.8 * max(0.0, qty / capacity - 1.0)
-        if is_pk:
-            logit -= 1.5 * h.peak_sensitivity
-        if rng.uniform() < _sigmoid(logit):
-            actual = int(o.lead_time_janji) - int(rng.binomial(2, 0.3))
+        if rng.uniform() < _ontime_prob(h, m, qty, d, is_pk):
+            actual = int(o.lead_time_janji) - int(rng.binomial(EARLY_N, EARLY_P))
         else:
-            lam_late = 1.0 + 3.0 * (1 - h.true_reliability) + (1.5 if is_pk else 0.0)
-            actual = int(o.lead_time_janji) + 1 + int(rng.poisson(lam_late))
+            actual = int(o.lead_time_janji) + 1 + int(rng.poisson(_late_lambda(h, is_pk)))
         actual = max(1, actual)
 
-        # Cacat: tingkat dasar vendor, lebih tinggi saat musim ramai, plus variasi per batch.
-        # Barang per roll jarang cacat, dan qty-nya kecil (1 roll cacat dari 10 = 10%), jadi diturunkan.
-        p_def = h.true_defect_rate * (1 + 0.5 * h.peak_sensitivity * is_pk) * rng.lognormal(0, 0.4)
-        if m.satuan == "roll":
-            p_def *= ROLL_DEFECT_MULT
+        # Cacat: tingkat dasar vendor x variasi per batch.
+        p_def = _defect_scale(h, m, is_pk) * rng.lognormal(0, DEFECT_BATCH_SIGMA)
         qty_cacat = int(rng.binomial(qty, min(p_def, 0.5)))
 
         # Harga transaksi: harga daftar saat ini disesuaikan inflasi mundur dan sedikit naik saat musim ramai.

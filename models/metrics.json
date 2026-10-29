@@ -1,0 +1,243 @@
+{
+  "version": "v1-random_forest",
+  "selected": "random_forest",
+  "selection_rule": "CV ROC-AUC tertinggi; selisih < 0.005 -> pilih yang lebih sederhana",
+  "split": {
+    "train_until": "2026-04-01",
+    "n_train": 4492,
+    "n_test": 1583,
+    "n_eval_needs": 1464,
+    "n_eval_candidates": 8570
+  },
+  "cv": [
+    {
+      "model": "baseline",
+      "cv_roc_auc": 0.6499952587861071,
+      "cv_std": 0.033076492960426765,
+      "best_params": {}
+    },
+    {
+      "model": "logreg",
+      "cv_roc_auc": 0.7778527195989593,
+      "cv_std": 0.02608917193266857,
+      "best_params": {
+        "C": 0.03
+      }
+    },
+    {
+      "model": "random_forest",
+      "cv_roc_auc": 0.7963764734096135,
+      "cv_std": 0.01243849077775401,
+      "best_params": {
+        "max_features": 0.5,
+        "min_samples_leaf": 20
+      }
+    },
+    {
+      "model": "lightgbm",
+      "cv_roc_auc": 0.7929356585880746,
+      "cv_std": 0.013230616732151272,
+      "best_params": {
+        "min_child_samples": 50,
+        "n_estimators": 200,
+        "num_leaves": 7
+      }
+    }
+  ],
+  "test": [
+    {
+      "model": "baseline",
+      "roc_auc": 0.6247178061357856,
+      "brier": 0.16294018847874497,
+      "log_loss": 0.5042542734810129
+    },
+    {
+      "model": "logreg",
+      "roc_auc": 0.8127492217390272,
+      "brier": 0.1323187094575542,
+      "log_loss": 0.4098547298241292
+    },
+    {
+      "model": "random_forest",
+      "roc_auc": 0.8128704165775529,
+      "brier": 0.12871809649534127,
+      "log_loss": 0.4059835884633588
+    },
+    {
+      "model": "lightgbm",
+      "roc_auc": 0.8193685986549749,
+      "brier": 0.12777536889116162,
+      "log_loss": 0.4009371185446003
+    },
+    {
+      "model": "oracle",
+      "roc_auc": 0.8394572372329554,
+      "brier": 0.12151353864469609,
+      "log_loss": 0.38067620791302215
+    }
+  ],
+  "ranking": [
+    {
+      "preset": "Seimbang",
+      "strategi": "Pilih termurah",
+      "ndcg@3": 0.7953389125844484,
+      "top1_hit": 0.3599726775956284,
+      "regret": 0.09275998202028023,
+      "p_berhasil_pilihan1": 0.7465388884115611,
+      "harga_pilihan1_vs_termurah": 1.0
+    },
+    {
+      "preset": "Seimbang",
+      "strategi": "Baseline (rata-rata historis)",
+      "ndcg@3": 0.9614842733488916,
+      "top1_hit": 0.75,
+      "regret": 0.012965556491044875,
+      "p_berhasil_pilihan1": 0.8458821002145945,
+      "harga_pilihan1_vs_termurah": 1.0762655597175552
+    },
+    {
+      "preset": "Seimbang",
+      "strategi": "Logistic Regression",
+      "ndcg@3": 0.9853189995607478,
+      "top1_hit": 0.8668032786885246,
+      "regret": 0.00416061488006609,
+      "p_berhasil_pilihan1": 0.8705754062967032,
+      "harga_pilihan1_vs_termurah": 1.0933094179621314
+    },
+    {
+      "preset": "Seimbang",
+      "strategi": "Random Forest",
+      "ndcg@3": 0.98177842482889,
+      "top1_hit": 0.842896174863388,
+      "regret": 0.004107633015448546,
+      "p_berhasil_pilihan1": 0.8751861348846689,
+      "harga_pilihan1_vs_termurah": 1.089185318193597
+    },
+    {
+      "preset": "Seimbang",
+      "strategi": "LightGBM",
+      "ndcg@3": 0.9871807067037153,
+      "top1_hit": 0.9043715846994536,
+      "regret": 0.0027223852826188093,
+      "p_berhasil_pilihan1": 0.8729776805198122,
+      "harga_pilihan1_vs_termurah": 1.0911561910722292
+    },
+    {
+      "preset": "Seimbang",
+      "strategi": "Sempurna (P sebenarnya)",
+      "ndcg@3": 1.0,
+      "top1_hit": 1.0,
+      "regret": 0.0,
+      "p_berhasil_pilihan1": 0.8831728237658468,
+      "harga_pilihan1_vs_termurah": 1.093481331380782
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "Pilih termurah",
+      "ndcg@3": 0.976170527493344,
+      "top1_hit": 0.7711748633879781,
+      "regret": 0.015644048162130643,
+      "p_berhasil_pilihan1": 0.7465388884115611,
+      "harga_pilihan1_vs_termurah": 1.0
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "Baseline (rata-rata historis)",
+      "ndcg@3": 0.99427646712956,
+      "top1_hit": 0.8811475409836066,
+      "regret": 0.004188637531506662,
+      "p_berhasil_pilihan1": 0.7796160635322487,
+      "harga_pilihan1_vs_termurah": 1.0169240785622835
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "Logistic Regression",
+      "ndcg@3": 0.9968109701100845,
+      "top1_hit": 0.9228142076502732,
+      "regret": 0.001999462138319394,
+      "p_berhasil_pilihan1": 0.7897131778696265,
+      "harga_pilihan1_vs_termurah": 1.0149673805111263
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "Random Forest",
+      "ndcg@3": 0.9973673956827117,
+      "top1_hit": 0.9139344262295082,
+      "regret": 0.002201081204203973,
+      "p_berhasil_pilihan1": 0.7880490599014598,
+      "harga_pilihan1_vs_termurah": 1.0118978518388355
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "LightGBM",
+      "ndcg@3": 0.9967634960277872,
+      "top1_hit": 0.9193989071038251,
+      "regret": 0.00206214312070091,
+      "p_berhasil_pilihan1": 0.7911418233196542,
+      "harga_pilihan1_vs_termurah": 1.0132001079668853
+    },
+    {
+      "preset": "Termurah",
+      "strategi": "Sempurna (P sebenarnya)",
+      "ndcg@3": 1.0,
+      "top1_hit": 1.0,
+      "regret": 0.0,
+      "p_berhasil_pilihan1": 0.807085355169002,
+      "harga_pilihan1_vs_termurah": 1.0178563305709978
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "Pilih termurah",
+      "ndcg@3": 0.5192761010756534,
+      "top1_hit": 0.15846994535519127,
+      "regret": 0.3028566746249915,
+      "p_berhasil_pilihan1": 0.7465388884115611,
+      "harga_pilihan1_vs_termurah": 1.0
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "Baseline (rata-rata historis)",
+      "ndcg@3": 0.9875542514078122,
+      "top1_hit": 0.8531420765027322,
+      "regret": 0.003399963649767508,
+      "p_berhasil_pilihan1": 0.8903260962431724,
+      "harga_pilihan1_vs_termurah": 1.186628672854242
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "Logistic Regression",
+      "ndcg@3": 0.9942030691002235,
+      "top1_hit": 0.8811475409836066,
+      "regret": 0.002623012786334347,
+      "p_berhasil_pilihan1": 0.8859532512296256,
+      "harga_pilihan1_vs_termurah": 1.1761119734835792
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "Random Forest",
+      "ndcg@3": 0.9947228542304276,
+      "top1_hit": 0.8975409836065574,
+      "regret": 0.001577649777930651,
+      "p_berhasil_pilihan1": 0.8933183342071626,
+      "harga_pilihan1_vs_termurah": 1.1793276715412662
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "LightGBM",
+      "ndcg@3": 0.994178226929577,
+      "top1_hit": 0.8961748633879781,
+      "regret": 0.001890655223134382,
+      "p_berhasil_pilihan1": 0.8904885492786423,
+      "harga_pilihan1_vs_termurah": 1.174819935452795
+    },
+    {
+      "preset": "Tercepat",
+      "strategi": "Sempurna (P sebenarnya)",
+      "ndcg@3": 1.0,
+      "top1_hit": 1.0,
+      "regret": 0.0,
+      "p_berhasil_pilihan1": 0.8942930815055726,
+      "harga_pilihan1_vs_termurah": 1.172665795569534
+    }
+  ]
+}

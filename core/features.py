@@ -121,7 +121,7 @@ def vendor_history(prepared_tx: pd.DataFrame, vendor_ids, as_of) -> pd.DataFrame
     return out
 
 
-def _need_offer_features(df: pd.DataFrame, materials: pd.DataFrame, order_dates) -> pd.DataFrame:
+def need_offer_features(df: pd.DataFrame, materials: pd.DataFrame, order_dates) -> pd.DataFrame:
     """Fitur kebutuhan + penawaran. `df` butuh kolom material_id, qty, hari_tersedia,
     harga_satuan, lead_time_janji, moq."""
     mat = materials.set_index("material_id")
@@ -148,7 +148,7 @@ def build_training_frame(transactions: pd.DataFrame, offers: pd.DataFrame,
     """Satu baris per transaksi historis: id, tanggal, fitur, dan label berhasil."""
     tx = prepare_transactions(transactions).sort_values("tanggal_pesan").reset_index(drop=True)
     tx["moq"] = tx["offer_id"].map(offers.set_index("offer_id")["moq"])
-    base = _need_offer_features(tx, materials, tx["tanggal_pesan"])
+    base = need_offer_features(tx, materials, tx["tanggal_pesan"])
     hist = vendor_history(tx, tx["vendor_id"], tx["tanggal_pesan"])
     ids = tx[["transaksi_id", "tanggal_pesan", "vendor_id", "material_id", "offer_id"]]
     return pd.concat([ids, base, hist, tx[["berhasil"]]], axis=1)
@@ -165,7 +165,7 @@ def build_candidate_features(need: dict, candidates: pd.DataFrame, transactions:
     as_of = pd.Timestamp(need.get("tanggal") or tx["tanggal_pesan"].max() + pd.Timedelta(days=1))
     c = candidates.reset_index(drop=True).copy()
     c["qty"], c["hari_tersedia"] = need["qty"], need["hari_tersedia"]
-    base = _need_offer_features(c, materials, [as_of] * len(c))
+    base = need_offer_features(c, materials, [as_of] * len(c))
     hist = vendor_history(tx, c["vendor_id"], as_of)
     keep = c.drop(columns=[col for col in base.columns if col in c.columns])
     return pd.concat([keep, base, hist], axis=1)

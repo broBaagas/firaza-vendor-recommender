@@ -1,8 +1,8 @@
 # Semua lisensi permisif (BSD/MIT/Apache). Jangan tambah dependensi GPL/AGPL/LGPL/MPL/EPL.
 numpy>=2.0          # BSD-3
 pandas>=2.2         # BSD-3
-scikit-learn>=1.5   # BSD-3
-lightgbm>=4.5       # MIT
+scikit-learn==1.9.1 # BSD-3 (versi dikunci: model.joblib harus dimuat dengan versi yang sama)
+lightgbm==4.7.0     # MIT
 joblib>=1.4         # BSD-3
 fastapi>=0.115      # MIT
 uvicorn>=0.30       # BSD-3
