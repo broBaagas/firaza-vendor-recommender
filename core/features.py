@@ -134,7 +134,7 @@ def _need_offer_features(df: pd.DataFrame, materials: pd.DataFrame, order_dates)
         "bulan": dates.dt.month.to_numpy(),
         "musim_ramai": is_peak(dates).astype(int),
         "kategori": mat["kategori"].reindex(df["material_id"]).to_numpy(),
-        # Harga absolut antarmaterial tidak sebanding (Rp300 s.d. Rp160.000), jadi dipakai relatif
+        # Harga absolut antarmaterial tidak sebanding (Rp50 s.d. Rp120.000), jadi dipakai relatif
         # terhadap harga referensi material.
         "harga_relatif": df["harga_satuan"].to_numpy() / ref_price,
         "lead_time_janji": df["lead_time_janji"].to_numpy(),

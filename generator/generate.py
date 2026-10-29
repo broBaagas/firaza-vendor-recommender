@@ -28,21 +28,22 @@ N_TRANSACTIONS = 6000
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # id, nama, kategori, satuan, harga_min, harga_max (Rp/satuan), lead_min, lead_max (hari), qty_median, popularitas
+# Rentang harga dikalibrasi dari listing marketplace (diakses 29 Okt 2026); sumber di docs/asumsi_data.md.
 MATERIALS = [
-    ("M01", "Handuk mandi 70x140 cm", "tekstil", "pcs", 35_000, 65_000, 7, 14, 150, 1.4),
-    ("M02", "Handuk muka 30x30 cm", "tekstil", "pcs", 6_000, 12_000, 5, 10, 300, 1.0),
-    ("M03", "Sajadah polos dewasa", "tekstil", "pcs", 40_000, 80_000, 7, 14, 120, 1.3),
-    ("M04", "Sajadah travel lipat", "tekstil", "pcs", 20_000, 40_000, 7, 12, 100, 0.8),
-    ("M05", "Mukena katun dewasa", "tekstil", "pcs", 85_000, 160_000, 10, 18, 60, 0.6),
-    ("M06", "Kotak hampers rigid box", "packaging", "pcs", 9_000, 22_000, 5, 10, 200, 1.3),
-    ("M07", "Kardus pengiriman", "packaging", "pcs", 2_000, 5_000, 2, 5, 400, 1.2),
-    ("M08", "Paper bag", "packaging", "pcs", 3_000, 8_000, 3, 7, 250, 0.9),
-    ("M09", "Tas spunbond", "packaging", "pcs", 2_500, 6_000, 4, 8, 250, 0.7),
-    ("M10", "Bubble wrap 125 cm x 50 m", "packaging", "roll", 45_000, 95_000, 2, 4, 10, 0.6),
-    ("M11", "Plastik OPP", "packaging", "pcs", 300, 1_000, 2, 4, 1000, 0.7),
-    ("M12", "Pita satin", "aksesoris", "roll", 5_000, 15_000, 2, 5, 40, 0.7),
-    ("M13", "Kartu ucapan cetak", "aksesoris", "pcs", 500, 2_000, 3, 6, 300, 0.8),
-    ("M14", "Jasa bordir nama", "jasa", "pcs", 5_000, 15_000, 4, 9, 120, 1.1),
+    ("M01", "Handuk mandi 70x140 cm", "tekstil", "pcs", 25_000, 70_000, 7, 14, 150, 1.4),
+    ("M02", "Handuk muka 30x30 cm", "tekstil", "pcs", 7_000, 12_000, 5, 10, 300, 1.0),
+    ("M03", "Sajadah polos dewasa", "tekstil", "pcs", 25_000, 65_000, 7, 14, 120, 1.3),
+    ("M04", "Sajadah travel lipat", "tekstil", "pcs", 10_000, 30_000, 7, 12, 100, 0.8),
+    ("M05", "Mukena katun dewasa", "tekstil", "pcs", 35_000, 120_000, 10, 18, 60, 0.6),
+    ("M06", "Kotak hampers rigid box", "packaging", "pcs", 10_000, 30_000, 5, 10, 200, 1.3),
+    ("M07", "Kardus pengiriman", "packaging", "pcs", 1_000, 5_500, 2, 5, 400, 1.2),
+    ("M08", "Paper bag", "packaging", "pcs", 750, 2_000, 3, 7, 250, 0.9),
+    ("M09", "Tas spunbond", "packaging", "pcs", 700, 2_500, 4, 8, 250, 0.7),
+    ("M10", "Bubble wrap 125 cm x 50 m", "packaging", "roll", 85_000, 115_000, 2, 4, 10, 0.6),
+    ("M11", "Plastik OPP", "packaging", "pcs", 50, 300, 2, 4, 1000, 0.7),
+    ("M12", "Pita satin", "aksesoris", "roll", 10_000, 20_000, 2, 5, 40, 0.7),
+    ("M13", "Kartu ucapan cetak", "aksesoris", "pcs", 500, 4_000, 3, 6, 300, 0.8),
+    ("M14", "Jasa bordir nama", "jasa", "pcs", 2_000, 8_000, 4, 9, 120, 1.1),
     ("M15", "Jasa printing sajadah", "jasa", "pcs", 10_000, 25_000, 5, 10, 100, 0.9),
 ]
 
@@ -71,6 +72,12 @@ def _sigmoid(x):
 
 def _logit(p):
     return np.log(p / (1.0 - p))
+
+
+def _round_price(price: float) -> int:
+    """Bulatkan ke kelipatan yang wajar untuk besaran harganya (Rp5 / Rp50 / Rp100)."""
+    step = 5 if price < 1_000 else 50 if price < 5_000 else 100
+    return int(round(price / step) * step)
 
 
 def generate_materials() -> pd.DataFrame:
@@ -149,7 +156,6 @@ def generate_offers(rng: np.random.Generator, vendors: pd.DataFrame, materials: 
         base = (m.harga_ref_min + m.harga_ref_max) / 2
         # Vendor yang menjanjikan lebih cepat sedikit lebih mahal (±2% per hari).
         price = base * pf[vendor_id] * (1 + 0.02 * (lead_mid - lead)) * np.exp(rng.normal(0, 0.08))
-        step = 50 if base < 5_000 else 100
         moq_choices = [0.1, 0.25, 0.5, 1.0] if m.satuan == "pcs" else [0.1, 0.2, 0.5]
         moq = max(1, int(round(m.qty_median * rng.choice(moq_choices))))
         if moq >= 20:
@@ -157,7 +163,7 @@ def generate_offers(rng: np.random.Generator, vendors: pd.DataFrame, materials: 
         rows.append({
             "vendor_id": vendor_id,
             "material_id": material_id,
-            "harga_satuan": int(round(price / step) * step),
+            "harga_satuan": _round_price(price),
             "lead_time_janji": lead,
             "moq": moq,
         })
@@ -245,7 +251,7 @@ def generate_transactions(rng: np.random.Generator, vendors: pd.DataFrame, mater
         months_before_end = (end - d).days / 30.4
         price = o.harga_satuan * (1 - INFLATION_PER_MONTH) ** months_before_end
         price *= (1.03 if is_pk else 1.0) * rng.lognormal(0, 0.02)
-        price = int(round(price / 50) * 50)
+        price = _round_price(price)
 
         rows.append({
             "tanggal_pesan": d.date(),

@@ -95,31 +95,35 @@ Didefinisikan di [`core/seasons.py`](../core/seasons.py) dan dipakai generator m
 - **Label** `berhasil = 1` jika `tanggal_datang ≤ deadline` **dan** `qty_cacat / qty ≤ 3%`.
 - **Anti-leakage.** Rekam jejak vendor untuk pesanan tanggal *t* hanya memakai transaksi vendor itu yang **sudah datang sebelum t** (`tanggal_datang < t`). Pesanan yang sudah dibuat tetapi barangnya belum datang hasilnya belum diketahui, jadi tidak ikut dihitung. Diuji di `tests/test_features.py`.
 - **Penghalusan.** Rasio rekam jejak dihaluskan dengan prior tetap (berhasil 0,7, telat 1 hari, cacat 2%, kekuatan prior 2 transaksi) supaya vendor dengan sedikit transaksi tidak menghasilkan nilai ekstrem. Prior berupa konstanta, tidak dihitung dari data.
-- **Harga sebagai fitur** dipakai dalam bentuk `harga_relatif` (harga ÷ titik tengah harga referensi material), karena harga absolut antarmaterial tidak sebanding (Rp300 s.d. Rp160.000). Harga rupiah tetap dipakai untuk saringan budget dan skor ranking.
+- **Harga sebagai fitur** dipakai dalam bentuk `harga_relatif` (harga ÷ titik tengah harga referensi material), karena harga absolut antarmaterial tidak sebanding (Rp50 s.d. Rp120.000). Harga rupiah tetap dipakai untuk saringan budget dan skor ranking.
 
 ## Kalibrasi harga
 
-Rentang `harga_ref_min`/`harga_ref_max` di `MATERIALS` (generator) saat ini adalah **perkiraan awal** harga grosir/marketplace untuk produk sejenis dan **belum diverifikasi**. Sebelum project brief, setiap rentang perlu dicek di Shopee/Tokopedia, lalu tautan dan tanggal aksesnya dicatat di tabel ini:
+Rentang `harga_ref_min`/`harga_ref_max` di `MATERIALS` (generator) dikalibrasi dari harga listing marketplace Indonesia, **diakses 29 Oktober 2026**. Harga paket dibagi isi untuk mendapatkan harga per satuan. Catatan:
 
-| Material | Rentang (Rp) | Sumber | Diakses |
-|---|---|---|---|
-| Handuk mandi 70x140 cm | 35.000 – 65.000 | _belum_ | |
-| Handuk muka 30x30 cm | 6.000 – 12.000 | _belum_ | |
-| Sajadah polos dewasa | 40.000 – 80.000 | _belum_ | |
-| Sajadah travel lipat | 20.000 – 40.000 | _belum_ | |
-| Mukena katun dewasa | 85.000 – 160.000 | _belum_ | |
-| Kotak hampers rigid box | 9.000 – 22.000 | _belum_ | |
-| Kardus pengiriman | 2.000 – 5.000 | _belum_ | |
-| Paper bag | 3.000 – 8.000 | _belum_ | |
-| Tas spunbond | 2.500 – 6.000 | _belum_ | |
-| Bubble wrap 125 cm x 50 m | 45.000 – 95.000 | _belum_ | |
-| Plastik OPP | 300 – 1.000 | _belum_ | |
-| Pita satin (roll) | 5.000 – 15.000 | _belum_ | |
-| Kartu ucapan cetak | 500 – 2.000 | _belum_ | |
-| Jasa bordir nama | 5.000 – 15.000 | _belum_ | |
-| Jasa printing sajadah | 10.000 – 25.000 | _belum_ | |
+- Angka berasal dari **harga tayang** (sering eceran atau paket kecil), bukan penawaran grosir resmi. Harga grosir partai besar Firaza kemungkinan berada di sisi bawah rentang.
+- Sebagian besar tautan adalah halaman hasil pencarian marketplace yang isinya berubah-ubah. Untuk sitasi final di project brief, sebaiknya simpan tangkapan layar listing yang dipakai.
+- Kolom **Keyakinan**: *cukup* = beberapa listing konsisten; *lemah* = hanya 1–2 listing atau produknya tidak persis sama; *estimasi* = tidak ada harga langsung, sehingga diturunkan dari produk terkait.
 
-Jika ada rentang yang diubah, jalankan ulang generator dan notebook EDA.
+| Material | Rentang (Rp) | Listing acuan | Sumber | Keyakinan |
+|---|---|---|---|---|
+| Handuk mandi 70x140 cm | 25.000 – 70.000 | Rp25.000 (polos); paket 4 pcs Rp104.348 (≈Rp26.000/pcs); Terry Palmer Rp68.316 | [Tokopedia](https://www.tokopedia.com/find/handuk-ukuran-70-x-140), [Tokopedia paket](https://www.tokopedia.com/find/handuk-dewasa-promo-4-pcs), [Lazada](https://www.lazada.co.id/trending/Towels-Top-Repurchased/505931065) | cukup |
+| Handuk muka 30x30 cm | 7.000 – 12.000 | Paket 12 pcs Rp104.594 (≈Rp8.700/pcs); satuan Rp7.378; hotel series Rp17.900 | [Tokopedia](https://www.tokopedia.com/find/souvenir-handuk-premium), [Ruparupa](https://www.ruparupa.com/acestore/p/forhom-30x30-cm-handuk-wajah-hotel-series-putih.html) | cukup |
+| Sajadah polos dewasa | 25.000 – 65.000 | 50 pcs Rp1.285.000 (≈Rp25.700/pcs); 10 pcs Rp442.990 (≈Rp44.300/pcs); ecer 70x110 Rp64.000 | [Tokopedia 50 pcs](https://www.tokopedia.com/find/sajadah-grosir-50-pcs), [Tokopedia bulu](https://www.tokopedia.com/find/sajadah-bulu-grosir), [Tokopedia 70x110](https://www.tokopedia.com/find/sajadah-dewasa-70x110) | cukup |
+| Sajadah travel lipat | 10.000 – 30.000 | 20 pcs Rp200.000 (≈Rp10.000/pcs); 10 pcs Rp145.000 (≈Rp14.500/pcs); ecer Rp25.000–29.999 | [Tokopedia grosir 20](https://www.tokopedia.com/find/sajadah-grosir-20-pcs), [Tokopedia grosir 10](https://www.tokopedia.com/find/sajadah-grosir-10-pcs), [Tokopedia](https://www.tokopedia.com/find/sajadah-travel) | cukup |
+| Mukena katun dewasa | 35.000 – 120.000 | Lazada Rp34.500–72.500; katun rayon Rp119.900 | [Lazada](https://www.lazada.co.id/trending/Perlengkapan-Shalat-Top-Repurchased/1013399721), [Tokopedia](https://www.tokopedia.com/find/mukena-dewasa-katun-rayon) | cukup |
+| Kotak hampers rigid box | 10.000 – 30.000 | Dus hampers 10 pcs Rp59.400 (≈Rp5.940/pcs, bukan rigid); hardbox/hardcarton Rp30.000–31.000 | [Tokopedia](https://www.tokopedia.com/find/kotak-hampers), [Tokopedia 22x22x10](https://www.tokopedia.com/find/box-hampers-22x22x10-cm) | lemah |
+| Kardus pengiriman | 1.000 – 5.500 | Isi 100 Rp110.500 (≈Rp1.105/pcs); 15x15x7 Rp1.897; 20x15x10 Rp5.596 | [Tokopedia](https://www.tokopedia.com/tokodus-tki/etalase/dus-packing), [Tokopedia](https://www.tokopedia.com/pasarkardus/product) | cukup |
+| Paper bag | 750 – 2.000 | Lusinan Rp9.899/12 pcs (≈Rp825/pcs); kraft Rp750–1.800 | [Tokopedia lusinan](https://www.tokopedia.com/find/paper-bag-polos-lusinan), [Tokopedia grosir](https://www.tokopedia.com/find/paper-bag-grosir) | cukup |
+| Tas spunbond | 700 – 2.500 | Lusin/kodi ≈Rp720–2.500/pcs | [Tokopedia](https://www.tokopedia.com/find/tas-spunbond), [Tokopedia 20x20](https://www.tokopedia.com/find/tas-serut-spunbond-20x20) | cukup |
+| Bubble wrap 125 cm x 50 m | 85.000 – 115.000 | Rp100.000/roll | [Indotrading](https://en.indotrading.com/multipacklestari/bubble-wrap-bening-p647167.aspx) | lemah |
+| Plastik OPP | 50 – 300 | Isi 100: Rp2.520–22.800 (≈Rp25–228/pcs) tergantung ukuran | [Tokopedia](https://www.tokopedia.com/shelbyscorner/plastik-opp-lem-berperekat-uk-25x35-isi-100-lembar), [Tokopedia 10x10](https://www.tokopedia.com/find/plastik-opp-ukuran-10x10) | cukup |
+| Pita satin (roll 1 inch, 25 yard) | 10.000 – 20.000 | Rp18.000–20.000/roll (ecer) | [Tokopedia](https://www.tokopedia.com/find/pita-satin-1-25-cm) | lemah |
+| Kartu ucapan cetak | 500 – 4.000 | Hang tag Rp500; kartu custom Rp1.000–4.000 | [Tokopedia](https://www.tokopedia.com/find/cetak-kartu-ucapan-custom) | cukup |
+| Jasa bordir nama | 2.000 – 8.000 | Satu listing ≈Rp1.500; bordir bet/nama seragam Rp2.000–5.000 | [Tokopedia](https://www.tokopedia.com/find/souvenir-handuk-bordir), [Lazada](https://www.lazada.co.id/trending/Needlework-Top-Repurchased/544481902) | lemah |
+| Jasa printing sajadah | 10.000 – 25.000 | Tidak ada harga jasa murni. Sajadah travel custom nama ≈Rp65.000 vs polos Rp10.000–30.000 (ecer), selisih untuk grosir diperkirakan Rp10.000–25.000 | [Tokopedia](https://www.tokopedia.com/wellenprint/etalase/ramadhan-edition), [Tokopedia](https://www.tokopedia.com/find/sajadah-bordir-nama) | estimasi |
+
+Untuk material berkeyakinan *lemah*/*estimasi*, akan lebih kuat jika dikonfirmasi ke Firaza (harga beli aktual) atau ditambah 1–2 listing lagi. Jika ada rentang yang diubah, jalankan ulang generator dan notebook EDA.
 
 ## Keterbatasan
 
