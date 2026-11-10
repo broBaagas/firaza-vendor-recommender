@@ -26,11 +26,14 @@ TOP_COLOR, OTHER_COLOR = "#2a78d6", "#a3a29c"
 
 st.set_page_config(page_title="Firaza Vendor Recommender", page_icon="📦", layout="wide")
 
-if "GEMINI_API_KEY" not in os.environ:
-    try:
-        os.environ["GEMINI_API_KEY"] = st.secrets.get("GEMINI_API_KEY", "")
-    except Exception:  # tidak ada secrets.toml
-        pass
+for _key in ("GEMINI_API_KEY", "DATABASE_URL"):
+    if _key not in os.environ:
+        try:
+            os.environ[_key] = st.secrets.get(_key, "")
+        except Exception:  # tidak ada secrets.toml
+            pass
+
+from core import storage  # noqa: E402
 
 
 @st.cache_data
@@ -113,7 +116,7 @@ st.caption("Decision-support pemilihan vendor: prediksi peluang berhasil (tepat 
            "lalu ranking berdasarkan peluang berhasil, harga, dan kecepatan. Keputusan akhir tetap di tangan Anda. "
            "**Data vendor dan transaksi sintetis.**")
 
-tab_rekomendasi, tab_vendor = st.tabs(["Rekomendasi", "Data Vendor"])
+tab_rekomendasi, tab_vendor, tab_riwayat = st.tabs(["Rekomendasi", "Data Vendor", "Riwayat"])
 
 with tab_rekomendasi:
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -145,11 +148,17 @@ with tab_rekomendasi:
         need = {"material_id": material_id, "qty": int(qty), "hari_tersedia": int(hari),
                 "budget": float(budget) if pakai_budget else None}
         try:
-            st.session_state["hasil"] = recommend(need, preset=preset if weights is None else "Seimbang",
-                                                  weights=weights, data=data, model=model)
+            hasil_baru = recommend(need, preset=preset if weights is None else "Seimbang",
+                                   weights=weights, data=data, model=model)
         except ValueError as e:
-            st.session_state.pop("hasil", None)
+            for k in ("hasil", "penjelasan", "riwayat_id"):
+                st.session_state.pop(k, None)
             st.error(str(e))
+        else:
+            with st.spinner("Menyusun penjelasan..."):
+                penjelasan_baru = get_explanation(hasil_baru) if hasil_baru["top"] else None
+            st.session_state.update(hasil=hasil_baru, penjelasan=penjelasan_baru,
+                                    riwayat_id=storage.safe_save(hasil_baru, penjelasan_baru, "streamlit"))
 
     hasil = st.session_state.get("hasil")
     if hasil:
@@ -175,11 +184,13 @@ with tab_rekomendasi:
                         st.caption(f"⚠️ Data terbatas ({r['jumlah_transaksi']} transaksi)")
 
             st.markdown("##### Penjelasan")
-            with st.spinner("Menyusun penjelasan..."):
-                penjelasan = get_explanation(hasil)
+            penjelasan = st.session_state.get("penjelasan") or get_explanation(hasil)
             with st.container(border=True):
                 st.markdown(to_markdown(penjelasan))
-            st.caption(explanation_caption(penjelasan))
+            caption = explanation_caption(penjelasan)
+            if st.session_state.get("riwayat_id"):
+                caption += f" Tersimpan di riwayat (#{st.session_state['riwayat_id']})."
+            st.caption(caption)
 
             st.markdown("##### Trade-off harga vs peluang berhasil")
             st.plotly_chart(tradeoff_chart(ranking, top_k=3), width="stretch", theme="streamlit")
@@ -243,3 +254,31 @@ with tab_vendor:
                        "harga_satuan": st.column_config.NumberColumn("Harga/satuan (Rp)", format="localized"),
                        "lead_time_janji": "Lead time (hari)", "moq": "MOQ"},
     )
+
+with tab_riwayat:
+    st.caption("Riwayat permintaan rekomendasi dari aplikasi ini dan dari API, disimpan di database (Supabase Postgres).")
+    if not storage.is_configured():
+        st.info("Penyimpanan riwayat belum dikonfigurasi (DATABASE_URL kosong).")
+    else:
+        st.button("Muat ulang", key="muat_riwayat")
+        try:
+            riwayat = pd.DataFrame(storage.list_history(limit=50))
+        except Exception as e:
+            st.error(f"Gagal membaca riwayat: {type(e).__name__}")
+        else:
+            if riwayat.empty:
+                st.write("Belum ada riwayat.")
+            else:
+                riwayat["material"] = riwayat["material_id"].map(materials["nama_material"])
+                st.dataframe(
+                    riwayat[["id", "waktu", "kanal", "material", "qty", "hari_tersedia", "budget", "preset",
+                             "jumlah_kandidat", "vendor_teratas", "sumber_penjelasan", "versi_model"]],
+                    hide_index=True, width="stretch",
+                    column_config={
+                        "id": "#", "waktu": st.column_config.DatetimeColumn("Waktu", format="D MMM YYYY, HH:mm"),
+                        "kanal": "Kanal", "material": "Material", "qty": "Jumlah", "hari_tersedia": "Hari",
+                        "budget": st.column_config.NumberColumn("Budget (Rp)", format="localized"),
+                        "preset": "Prioritas", "jumlah_kandidat": "Kandidat", "vendor_teratas": "Vendor #1",
+                        "sumber_penjelasan": "Penjelasan", "versi_model": "Model",
+                    },
+                )

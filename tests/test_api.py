@@ -15,7 +15,16 @@ NEED = {"material_id": "M01", "qty": 500, "hari_tersedia": 14}
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("DATABASE_URL", "")
     return TestClient(app)
+
+
+def test_recommend_saves_history(client, monkeypatch):
+    saved = []
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost:1/db")
+    monkeypatch.setattr("core.storage.save_recommendation", lambda r, e, kanal: saved.append(kanal) or 7)
+    body = client.post("/api/v1/recommend", json=NEED).json()
+    assert body["riwayat_id"] == 7 and saved == ["api"]
 
 
 def test_health(client):

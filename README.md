@@ -6,7 +6,7 @@ Sistem memprediksi **P(berhasil)** setiap vendor kandidat untuk suatu kebutuhan 
 
 **Live demo:** https://firaza.streamlit.app/
 
-> Status (Minggu 3): data, fitur, model v1 (`v1-random_forest`), ranking, Streamlit, penjelasan Gemini (dengan validasi angka), dan inference API sudah jalan. Penyimpanan riwayat (`storage`, Supabase) masih kerangka.
+> Status: data, fitur, model v1 (`v1-random_forest`), ranking, Streamlit, penjelasan Gemini (dengan validasi angka), inference API, dan riwayat rekomendasi di Supabase sudah jalan.
 
 ## Hasil model v1
 
@@ -105,9 +105,12 @@ Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `preset` (`Seimb
 
 Isi `GEMINI_API_KEY` di `.env` (lokal) atau Secrets (Streamlit Cloud). Model default `gemini-3.5-flash-lite`, bisa diganti lewat env `GEMINI_MODEL`. Gemini menerima konteks JSON (kebutuhan, 3 vendor teratas, dan selisih yang sudah dihitung) dan hanya menulis penjelasan. Setiap angka di penjelasan dicek terhadap konteks dan rekomendasi wajib menyebut vendor peringkat 1; jika tidak lolos, kuota habis, atau API gagal, dipakai template cadangan.
 
+### Riwayat rekomendasi (Supabase)
+
+Isi `DATABASE_URL` (Supabase, connection string **Session pooler**) di `.env` atau Secrets. Setiap permintaan dari Streamlit dan API disimpan ke tabel `riwayat_rekomendasi` (dibuat otomatis, Row Level Security aktif sehingga tertutup dari Data API publik Supabase) dan bisa dilihat di tab **Riwayat**. Koneksi memakai TLS yang diverifikasi dengan sertifikat CA Supabase di `certs/supabase-ca.crt`. Tanpa `DATABASE_URL`, aplikasi tetap jalan tanpa menyimpan riwayat.
+
 ### Belum tersedia di versi ini
 
-- Penyimpanan riwayat rekomendasi ke Supabase.
 - Live URL untuk API (Render).
 
 ## Struktur
@@ -128,7 +131,8 @@ Isi `GEMINI_API_KEY` di `.env` (lokal) atau Secrets (Streamlit Cloud). Model def
 │   ├── features.py       # label + fitur, rekam jejak vendor anti-leakage
 │   ├── ranking.py        # saringan kandidat, skor berbobot, recommend()
 │   ├── explain.py        # penjelasan Gemini + validasi angka + template cadangan
-│   └── storage.py        # riwayat ke Supabase (Minggu 4)
+│   └── storage.py        # riwayat rekomendasi ke Supabase Postgres (pg8000)
+├── certs/supabase-ca.crt # sertifikat CA publik Supabase untuk verifikasi TLS
 ├── notebooks/            # 01_eda.ipynb, 02_training.ipynb
 ├── models/               # model.joblib (v1) + metrics.json
 ├── app/streamlit_app.py  # antarmuka Streamlit
@@ -150,11 +154,11 @@ hasil["top"]   # 3 vendor teratas: harga, lead time, p_berhasil, skor, flag data
 
 ```bash
 pip install -r requirements-dev.txt   # + pytest, jupyter, matplotlib
-copy .env.example .env                # isi GEMINI_API_KEY (SUPABASE_URL, SUPABASE_KEY belum dipakai)
+copy .env.example .env                # isi GEMINI_API_KEY dan DATABASE_URL (keduanya opsional)
 
 python -m generator.generate    # buat ulang dataset sintetis ke data/ (deterministik, ±8 detik)
 python -m training.train        # latih ulang model v1 + metrics.json (±1,5 menit)
-pytest                          # 60 tes; Gemini di-mock, tidak memakai kuota
+pytest                          # Gemini dan database di-mock; RUN_DB_TESTS=1 untuk tes ke Supabase
 uvicorn api.main:app --reload   # inference API di http://localhost:8000/docs
 ```
 

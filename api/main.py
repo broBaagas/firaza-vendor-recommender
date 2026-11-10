@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, model_validator
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # lokal; di Render pakai env var
 
-from core import MODEL_VERSION  # noqa: E402
+from core import MODEL_VERSION, storage  # noqa: E402
 from core.data import load_data  # noqa: E402
 from core.explain import explain  # noqa: E402
 from core.ranking import load_model, recommend as core_recommend  # noqa: E402
@@ -124,6 +124,7 @@ class RecommendResponse(BaseModel):
     ranking: list[VendorHasil] = Field(description="Semua kandidat yang lolos saringan, terurut")
     pesan: str | None = Field(default=None, description="Diisi jika tidak ada kandidat")
     penjelasan: PenjelasanOut | None
+    riwayat_id: int | None = Field(default=None, description="ID baris di tabel riwayat, atau null jika tidak tersimpan")
 
 
 class Material(BaseModel):
@@ -173,4 +174,5 @@ def recommend(req: RecommendRequest) -> dict:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
     result["penjelasan"] = explain(result, data["materials"]) if req.dengan_penjelasan else None
+    result["riwayat_id"] = storage.safe_save(result, result["penjelasan"], "api")
     return result

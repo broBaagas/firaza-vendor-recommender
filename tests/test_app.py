@@ -10,12 +10,14 @@ APP_PATH = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
 @pytest.fixture
 def app(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "")  # jangan memanggil Gemini sungguhan saat tes
+    monkeypatch.setenv("DATABASE_URL", "")  # jangan menulis ke database sungguhan
     return AppTest.from_file(str(APP_PATH), default_timeout=60).run()
 
 
 def test_app_loads(app):
     assert not app.exception
-    assert len(app.tabs) == 2
+    assert len(app.tabs) == 3
+    assert any("belum dikonfigurasi" in i.value for i in app.info)  # tab Riwayat tanpa DATABASE_URL
 
 
 def test_recommendation_flow(app):
