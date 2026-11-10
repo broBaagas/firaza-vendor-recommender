@@ -4,7 +4,9 @@ Decision-support pemilihan vendor untuk Firaza (Capstone Dicoding Bootcamp Batch
 
 Sistem memprediksi **P(berhasil)** setiap vendor kandidat untuk suatu kebutuhan (barang datang ≤ deadline **dan** cacat ≤ 3%), lalu meranking kandidat dengan skor berbobot (keberhasilan, harga, kecepatan). Gemini hanya **menjelaskan** hasil ranking; Gemini tidak menentukan ranking.
 
-> Status (Minggu 2): data, fitur, model v1 (`v1-random_forest`), ranking, dan Streamlit versi awal sudah jalan. Modul `explain` (Gemini), `storage` (Supabase), dan API masih kerangka.
+**Live demo:** https://firaza.streamlit.app/
+
+> Status (Minggu 3): data, fitur, model v1 (`v1-random_forest`), ranking, Streamlit, penjelasan Gemini (dengan validasi angka), dan inference API sudah jalan. Penyimpanan riwayat (`storage`, Supabase) masih kerangka.
 
 ## Hasil model v1
 
@@ -19,7 +21,7 @@ Rincian: [docs/evaluasi_model.md](docs/evaluasi_model.md).
 
 ## Mencoba versi awal
 
-Versi ini sudah bisa dicoba **tanpa API key dan tanpa database**. Data sintetis (`data/`) dan model v1 (`models/model.joblib`) sudah ikut di repo, jadi tidak perlu menjalankan generator atau training. Diuji dengan Python 3.14 di Windows.
+Versi ini sudah bisa dicoba **tanpa API key dan tanpa database**; tanpa `GEMINI_API_KEY`, penjelasan memakai template cadangan. Data sintetis (`data/`) dan model v1 (`models/model.joblib`) sudah ikut di repo, jadi tidak perlu menjalankan generator atau training. Diuji dengan Python 3.14 di Windows.
 
 ### 1. Siapkan lingkungan
 
@@ -46,7 +48,7 @@ Buka http://localhost:8501, lalu:
 3. Centang **Batasi total budget** untuk menyaring vendor yang total harganya melebihi budget.
 4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor dan daftar penawaran per material.
 
-Yang ditampilkan: kartu 3 vendor teratas, ringkasan perbandingan dengan vendor termurah, grafik harga vs peluang berhasil, dan tabel semua kandidat. Vendor dengan < 5 transaksi ditandai ⚠️ data terbatas.
+Yang ditampilkan: kartu 3 vendor teratas, penjelasan (rekomendasi, alasan, trade-off, saran), grafik harga vs peluang berhasil, dan tabel semua kandidat. Vendor dengan < 5 transaksi ditandai ⚠️ data terbatas.
 
 ### 3. Coba lewat Python
 
@@ -78,11 +80,35 @@ Kebutuhan berisi `material_id`, `qty`, `hari_tersedia`, dan opsional `budget` (t
 - **Data terbatas**: vendor dengan < 5 transaksi; prediksinya kurang pasti.
 - Nama vendor ("Tekstil F", "Packaging C", …) dan semua transaksi **fiktif**, berasal dari generator data sintetis.
 
+### 4. Coba lewat API (FastAPI)
+
+```powershell
+uvicorn api.main:app --reload
+```
+
+Dokumentasi interaktif di http://localhost:8000/docs. Endpoint:
+
+| Method | Path | Isi |
+|---|---|---|
+| GET | `/health` | status dan versi model |
+| GET | `/api/v1/materials` | daftar kode material |
+| POST | `/api/v1/recommend` | ranking vendor + penjelasan |
+
+```powershell
+curl -X POST http://localhost:8000/api/v1/recommend -H "Content-Type: application/json" `
+  -d '{"material_id": "M03", "qty": 200, "hari_tersedia": 12, "preset": "Termurah"}'
+```
+
+Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
+
+### Penjelasan Gemini
+
+Isi `GEMINI_API_KEY` di `.env` (lokal) atau Secrets (Streamlit Cloud). Model default `gemini-3.5-flash-lite`, bisa diganti lewat env `GEMINI_MODEL`. Gemini menerima konteks JSON (kebutuhan, 3 vendor teratas, dan selisih yang sudah dihitung) dan hanya menulis penjelasan. Setiap angka di penjelasan dicek terhadap konteks dan rekomendasi wajib menyebut vendor peringkat 1; jika tidak lolos, kuota habis, atau API gagal, dipakai template cadangan.
+
 ### Belum tersedia di versi ini
 
-- Penjelasan rekomendasi oleh Gemini (Minggu 3). Ringkasan yang tampil saat ini masih teks template.
-- Inference API `POST /api/v1/recommend` (Minggu 3). Endpoint sudah ada, tetapi masih mengembalikan 501.
-- Penyimpanan riwayat rekomendasi ke Supabase dan live URL (Minggu 4).
+- Penyimpanan riwayat rekomendasi ke Supabase.
+- Live URL untuk API (Render).
 
 ## Struktur
 
@@ -101,7 +127,7 @@ Kebutuhan berisi `material_id`, `qty`, `hari_tersedia`, dan opsional `budget` (t
 │   ├── data.py           # memuat CSV
 │   ├── features.py       # label + fitur, rekam jejak vendor anti-leakage
 │   ├── ranking.py        # saringan kandidat, skor berbobot, recommend()
-│   ├── explain.py        # penjelasan Gemini (Minggu 3)
+│   ├── explain.py        # penjelasan Gemini + validasi angka + template cadangan
 │   └── storage.py        # riwayat ke Supabase (Minggu 4)
 ├── notebooks/            # 01_eda.ipynb, 02_training.ipynb
 ├── models/               # model.joblib (v1) + metrics.json
@@ -124,12 +150,12 @@ hasil["top"]   # 3 vendor teratas: harga, lead time, p_berhasil, skor, flag data
 
 ```bash
 pip install -r requirements-dev.txt   # + pytest, jupyter, matplotlib
-copy .env.example .env                # isi GEMINI_API_KEY, SUPABASE_URL, SUPABASE_KEY (belum dipakai di versi ini)
+copy .env.example .env                # isi GEMINI_API_KEY (SUPABASE_URL, SUPABASE_KEY belum dipakai)
 
 python -m generator.generate    # buat ulang dataset sintetis ke data/ (deterministik, ±8 detik)
 python -m training.train        # latih ulang model v1 + metrics.json (±1,5 menit)
-pytest                          # 30 tes: generator, fitur/anti-leakage, ranking, training, aplikasi
-uvicorn api.main:app --reload   # kerangka API (/recommend belum aktif)
+pytest                          # 60 tes; Gemini di-mock, tidak memakai kuota
+uvicorn api.main:app --reload   # inference API di http://localhost:8000/docs
 ```
 
 ## Skor ranking

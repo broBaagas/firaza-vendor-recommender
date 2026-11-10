@@ -61,8 +61,14 @@ Aturan wajib:
 3. Format angka Indonesia: Rp50.700, Rp25.350.000, 92%, 8,9%, 1,3 hari.
 4. "peluang_berhasil_persen" adalah prediksi model bahwa barang datang tepat deadline dan
    cacat paling banyak {BATAS_CACAT_PERSEN}%; sebut sebagai perkiraan, bukan jaminan.
-5. Jika "data_terbatas" bernilai true, sebutkan bahwa rekam jejak vendor itu masih sedikit.
-6. Jangan memakai heading atau format markdown; tulis kalimat biasa.
+5. Selisih di "perbandingan" adalah peringkat 1 dibanding pembanding. Tulis sebagai angka
+   positif dan pakai kata arah persis dari field "arah" (misalnya "lebih murah", "lebih cepat");
+   jangan menulis tanda minus.
+6. Jika "data_terbatas" bernilai true, sebutkan bahwa rekam jejak vendor itu masih sedikit.
+7. Semua vendor di konteks sudah lolos saringan MOQ, lead time, dan budget; jangan menyarankan
+   memeriksa hal itu lagi. Saran harus berupa tindakan yang berguna, misalnya vendor cadangan,
+   pengecekan kualitas, negosiasi harga, atau memesan lebih awal saat peluang berhasil rendah.
+8. Jangan memakai heading atau format markdown; tulis kalimat biasa.
 """
 
 
@@ -94,14 +100,29 @@ def _vendor_ctx(r: dict) -> dict:
     }
 
 
+def _arah(x: float, naik: str, turun: str) -> str:
+    return naik if x > 0 else turun if x < 0 else "sama"
+
+
 def _compare(a: dict, b: dict, label: str) -> dict:
-    """Selisih vendor a terhadap b (positif = a lebih tinggi). Dihitung dari angka yang sudah dibulatkan."""
+    """Selisih vendor a terhadap b (positif = a lebih tinggi). Dihitung dari angka yang sudah dibulatkan.
+
+    Kata arah ditulis eksplisit agar Gemini tidak perlu menafsirkan tanda (validator hanya memeriksa angka).
+    """
+    harga = round((a["harga_satuan_rp"] / b["harga_satuan_rp"] - 1) * 100, 1)
+    peluang = a["peluang_berhasil_persen"] - b["peluang_berhasil_persen"]
+    lead = a["lead_time_hari"] - b["lead_time_hari"]
     return {
         "antara": label,
-        "selisih_harga_persen": round((a["harga_satuan_rp"] / b["harga_satuan_rp"] - 1) * 100, 1),
+        "selisih_harga_persen": harga,
         "selisih_total_rp": a["total_harga_rp"] - b["total_harga_rp"],
-        "selisih_peluang_poin": a["peluang_berhasil_persen"] - b["peluang_berhasil_persen"],
-        "selisih_lead_time_hari": a["lead_time_hari"] - b["lead_time_hari"],
+        "selisih_peluang_poin": peluang,
+        "selisih_lead_time_hari": lead,
+        "arah": {
+            "harga": _arah(harga, "lebih mahal", "lebih murah"),
+            "peluang_berhasil": _arah(peluang, "lebih tinggi", "lebih rendah"),
+            "lead_time": _arah(lead, "lebih lambat", "lebih cepat"),
+        },
     }
 
 
