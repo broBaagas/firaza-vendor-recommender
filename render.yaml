@@ -1,0 +1,20 @@
+# Render Blueprint untuk inference API (FastAPI).
+# Render > New > Blueprint > pilih repo ini. Secret (sync: false) diisi saat pembuatan.
+services:
+  - type: web
+    name: firaza-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.14.3"   # sama dengan versi lokal; model.joblib dibuat dengan scikit-learn 1.9.1
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false

@@ -12,6 +12,7 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # lokal; di Render pakai env var
@@ -139,6 +140,11 @@ class Material(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/docs")
+
 
 @app.get("/health")
 def health() -> dict:
