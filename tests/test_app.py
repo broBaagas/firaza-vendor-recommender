@@ -8,7 +8,8 @@ APP_PATH = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "")  # jangan memanggil Gemini sungguhan saat tes
     return AppTest.from_file(str(APP_PATH), default_timeout=60).run()
 
 
@@ -21,7 +22,8 @@ def test_recommendation_flow(app):
     app.button[0].click().run()
     assert not app.exception
     assert len(app.metric) == 3  # kartu 3 teratas
-    assert any("peringkat 1" in m.value for m in app.markdown)
+    assert any(m.value.startswith("Pilih ") and "**Trade-off**" in m.value for m in app.markdown)
+    assert any("Penjelasan template" in c.value for c in app.caption)
 
 
 def test_custom_weights(app):

@@ -4,22 +4,33 @@ Memanggil modul core langsung, bukan lewat API.
 Jalankan: streamlit run app/streamlit_app.py
 """
 
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from dotenv import load_dotenv
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT))
+load_dotenv(ROOT / ".env")  # lokal; di Streamlit Cloud key diisi lewat Secrets
 
 from core.data import load_data  # noqa: E402
-from core.features import LIMITED_DATA_MIN_TX, prepare_transactions  # noqa: E402
+from core.explain import explain, to_markdown  # noqa: E402
+from core.features import prepare_transactions  # noqa: E402
 from core.ranking import PRESETS, load_model, recommend  # noqa: E402
 
 TOP_COLOR, OTHER_COLOR = "#2a78d6", "#a3a29c"
 
 st.set_page_config(page_title="Firaza Vendor Recommender", page_icon="📦", layout="wide")
+
+if "GEMINI_API_KEY" not in os.environ:
+    try:
+        os.environ["GEMINI_API_KEY"] = st.secrets.get("GEMINI_API_KEY", "")
+    except Exception:  # tidak ada secrets.toml
+        pass
 
 
 @st.cache_data
@@ -79,23 +90,18 @@ def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
     return fig
 
 
-def summary_text(ranking: pd.DataFrame) -> str:
-    """Ringkasan deterministik sementara (sebelum penjelasan Gemini di Minggu 3)."""
-    top = ranking.iloc[0]
-    cheapest = ranking.loc[ranking["harga_satuan"].idxmin()]
-    text = (f"**{top['nama_vendor']}** berada di peringkat 1 dengan peluang berhasil {persen(top['p_berhasil'])}, "
-            f"harga {rupiah(top['harga_satuan'])}/satuan, dan lead time {top['lead_time_janji']} hari.")
-    if cheapest["vendor_id"] != top["vendor_id"]:
-        selisih = f"{(top['harga_satuan'] / cheapest['harga_satuan'] - 1) * 100:.1f}".replace(".", ",")
-        text += (f" Vendor termurah, **{cheapest['nama_vendor']}** ({rupiah(cheapest['harga_satuan'])}), "
-                 f"peluang berhasilnya {persen(cheapest['p_berhasil'])}; pilihan #1 lebih mahal "
-                 f"{selisih}% tetapi peluang berhasilnya "
-                 f"{(top['p_berhasil'] - cheapest['p_berhasil']) * 100:+.0f} poin.")
-    else:
-        text += " Vendor ini sekaligus yang termurah di antara kandidat."
-    if top["data_terbatas"]:
-        text += f" ⚠️ Rekam jejak vendor ini masih sedikit (< {LIMITED_DATA_MIN_TX} transaksi)."
-    return text
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_explanation(hasil: dict) -> dict | None:
+    """Di-cache agar kebutuhan yang sama tidak memanggil Gemini berulang kali (hemat kuota)."""
+    return explain(hasil, get_data()["materials"])
+
+
+def explanation_caption(e: dict) -> str:
+    v = e["validasi"]
+    if e["sumber"] == "gemini":
+        return (f"✨ Ditulis oleh Gemini ({e['model']}). Ranking tetap dari model ML; "
+                f"{v['cocok']}/{v['jumlah_angka']} angka sudah dicek cocok dengan hasil model.")
+    return f"Penjelasan template (cadangan): {e['catatan']}."
 
 
 data = get_data()
@@ -168,9 +174,12 @@ with tab_rekomendasi:
                     if r["data_terbatas"]:
                         st.caption(f"⚠️ Data terbatas ({r['jumlah_transaksi']} transaksi)")
 
-            st.markdown("##### Ringkasan")
-            st.markdown(summary_text(ranking))
-            st.caption("Penjelasan AI (Gemini) beserta trade-off dan saran akan menggantikan ringkasan ini di Minggu 3.")
+            st.markdown("##### Penjelasan")
+            with st.spinner("Menyusun penjelasan..."):
+                penjelasan = get_explanation(hasil)
+            with st.container(border=True):
+                st.markdown(to_markdown(penjelasan))
+            st.caption(explanation_caption(penjelasan))
 
             st.markdown("##### Trade-off harga vs peluang berhasil")
             st.plotly_chart(tradeoff_chart(ranking, top_k=3), width="stretch", theme="streamlit")
