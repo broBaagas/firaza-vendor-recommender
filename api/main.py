@@ -6,6 +6,7 @@ Endpoint utama POST /api/v1/recommend memakai logika yang sama dengan Streamlit
 (core.ranking.recommend untuk ranking, core.explain.explain untuk penjelasan).
 """
 
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -21,6 +22,7 @@ from core import MODEL_VERSION, storage  # noqa: E402
 from core.data import load_data  # noqa: E402
 from core.explain import explain  # noqa: E402
 from core.ranking import load_model, recommend as core_recommend  # noqa: E402
+from core.seasons import CALENDAR_END  # noqa: E402
 
 app = FastAPI(
     title="Firaza Vendor Recommender API",
@@ -59,6 +61,10 @@ class RecommendRequest(BaseModel):
     qty: int = Field(gt=0, description="Jumlah yang dibutuhkan", examples=[500])
     hari_tersedia: int = Field(gt=0, description="Jumlah hari sampai deadline", examples=[14])
     budget: float | None = Field(default=None, gt=0, description="Batas total harga (Rp), opsional")
+    tanggal: date | None = Field(
+        default=None, examples=["2027-02-15"],
+        description="Tanggal pesan (YYYY-MM-DD), opsional; menentukan musim ramai (Ramadan-Lebaran, musim nikah). "
+                    f"Paling lambat {CALENDAR_END:%Y-%m-%d}. Default: sehari setelah data transaksi terakhir.")
     preset: Literal["Seimbang", "Termurah", "Tercepat", "Kustom"] = "Seimbang"
     bobot: Bobot | None = Field(default=None, description="Wajib jika preset = Kustom; dinormalisasi agar berjumlah 1")
     top_k: int = Field(default=3, ge=1, le=10, description="Jumlah vendor teratas di field 'top'")
@@ -115,8 +121,17 @@ class PenjelasanOut(BaseModel):
     validasi: Validasi
 
 
+class MusimRamai(BaseModel):
+    nama: str
+    jenis: str
+    mulai: str
+    selesai: str
+
+
 class RecommendResponse(BaseModel):
     kebutuhan: dict
+    tanggal_pesan: str = Field(description="Tanggal pesan yang dipakai untuk fitur musim (YYYY-MM-DD)")
+    musim_ramai: MusimRamai | None = Field(description="Periode musim ramai jika tanggal pesan jatuh di dalamnya")
     preset: str
     bobot: dict[str, float]
     model: str = Field(description="Versi model ML yang dipakai")
@@ -171,6 +186,8 @@ def recommend(req: RecommendRequest) -> dict:
                                                     "lihat GET /api/v1/materials")
     need = {"material_id": req.material_id, "qty": req.qty, "hari_tersedia": req.hari_tersedia,
             "budget": req.budget}
+    if req.tanggal:
+        need["tanggal"] = req.tanggal.isoformat()
     kustom = req.preset == "Kustom"
     try:
         result = core_recommend(need, preset="Seimbang" if kustom else req.preset, top_k=req.top_k,

@@ -3,6 +3,10 @@
 Dipakai bersama oleh generator (efek musim pada permintaan dan kinerja vendor)
 dan oleh core.features (fitur musim_ramai). Tanggal hijriah adalah perkiraan
 kalender pemerintah; selisih 1 hari tidak berpengaruh berarti.
+
+Periode 2027 dipakai hanya saat inferensi (pesanan ke depan); data latih berakhir Sep 2026.
+Perbarui tabel ini setiap tahun (misalnya dari SKB hari libur nasional) dan naikkan
+CALENDAR_END agar rekomendasi untuk tanggal yang lebih jauh diizinkan.
 """
 
 import numpy as np
@@ -17,7 +21,15 @@ PEAK_PERIODS = [
     ("2026-01-28", "2026-03-20", "Ramadan-Lebaran 2026"),  # 1 Ramadan 1447 ≈ 18 Feb, Idulfitri 20 Mar
     ("2026-03-21", "2026-04-18", "Musim nikah Syawal 2026"),
     ("2026-05-18", "2026-06-15", "Musim nikah Dzulhijjah 2026"),  # Iduladha 27 Mei
+    # Perkiraan hisab: 1 Ramadan 1448 ≈ 8 Feb 2027, Idulfitri ≈ 10 Mar 2027, Iduladha ≈ 17 Mei 2027.
+    ("2027-01-18", "2027-03-10", "Ramadan-Lebaran 2027"),
+    ("2027-03-11", "2027-04-08", "Musim nikah Syawal 2027"),
+    ("2027-05-08", "2027-06-05", "Musim nikah Dzulhijjah 2027"),
 ]
+
+# Tanggal terakhir yang tercakup kalender di atas. Pesanan setelah ini ditolak karena
+# musim ramainya belum diketahui (model akan menganggapnya hari biasa).
+CALENDAR_END = pd.Timestamp("2027-06-30")
 
 _RANGES = [(pd.Timestamp(a), pd.Timestamp(b)) for a, b, _ in PEAK_PERIODS]
 
@@ -29,3 +41,16 @@ def is_peak(dates) -> np.ndarray:
     for start, end in _RANGES:
         mask |= ((d >= start) & (d <= end)).to_numpy()
     return mask
+
+
+def peak_period(date) -> dict | None:
+    """Periode musim ramai yang memuat `date`, atau None.
+
+    Hasil: {"nama": "Ramadan-Lebaran 2027", "jenis": "Ramadan-Lebaran", "mulai": "2027-01-18", "selesai": ...}.
+    `jenis` adalah nama tanpa tahun (dipakai di konteks Gemini, yang dilarang menulis tahun).
+    """
+    d = pd.Timestamp(date).normalize()
+    for (start, end), (a, b, name) in zip(_RANGES, PEAK_PERIODS):
+        if start <= d <= end:
+            return {"nama": name, "jenis": name.rsplit(" ", 1)[0], "mulai": a, "selesai": b}
+    return None

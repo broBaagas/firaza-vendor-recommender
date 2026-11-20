@@ -35,6 +35,16 @@ def test_custom_weights(app):
     assert any("preset Kustom" in c.value for c in app.caption)
 
 
+def test_peak_season_banner(app):
+    from datetime import date
+    app.date_input[0].set_value(date(2027, 2, 15)).run()
+    assert any("Ramadan-Lebaran 2027" in c.value for c in app.caption)  # penanda di bawah input
+    app.button[0].click().run()
+    assert not app.exception
+    assert any("Musim ramai: Ramadan-Lebaran 2027" in i.value for i in app.info)
+    assert any("tanggal pesan 15 Feb 2027" in c.value for c in app.caption)
+
+
 def test_usage_guide_present(app):
     assert any(e.label.endswith("Cara pakai") for e in app.expander)
 

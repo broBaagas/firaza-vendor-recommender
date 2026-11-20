@@ -115,6 +115,8 @@ def _row_params(result: dict, explanation: dict | None, kanal: str) -> dict:
     hasil = {
         "top": top,
         "pesan": result.get("pesan"),
+        "tanggal_pesan": result.get("tanggal_pesan"),
+        "musim_ramai": (result.get("musim_ramai") or {}).get("nama"),
     }
     return {
         "kanal": kanal,

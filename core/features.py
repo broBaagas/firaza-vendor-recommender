@@ -158,14 +158,21 @@ def build_candidate_features(need: dict, candidates: pd.DataFrame, transactions:
                              materials: pd.DataFrame) -> pd.DataFrame:
     """Fitur untuk setiap penawaran kandidat pada saat inferensi.
 
-    `need`: material_id, qty, hari_tersedia, dan opsional tanggal (default: sehari setelah
-    pesanan terakhir di data). Mengembalikan kolom kandidat + fitur.
+    `need`: material_id, qty, hari_tersedia, dan opsional tanggal (tanggal pesan; default: sehari
+    setelah pesanan terakhir di data). Mengembalikan kolom kandidat + fitur.
+
+    Tanggal pesan menentukan fitur bulan dan musim_ramai. Rekam jejak vendor dihitung per
+    tanggal pesan, tetapi paling jauh sampai sehari setelah data terakhir: untuk pesanan di masa
+    depan dipakai rekam jejak terkini, agar fitur seperti hari_sejak_pesanan_terakhir tidak
+    membengkak di luar rentang data latih.
     """
     tx = prepare_transactions(transactions)
-    as_of = pd.Timestamp(need.get("tanggal") or tx["tanggal_pesan"].max() + pd.Timedelta(days=1))
+    data_end = tx["tanggal_pesan"].max() + pd.Timedelta(days=1)
+    order_date = pd.Timestamp(need.get("tanggal") or data_end)
+    as_of = min(order_date, data_end)
     c = candidates.reset_index(drop=True).copy()
     c["qty"], c["hari_tersedia"] = need["qty"], need["hari_tersedia"]
-    base = need_offer_features(c, materials, [as_of] * len(c))
+    base = need_offer_features(c, materials, [order_date] * len(c))
     hist = vendor_history(tx, c["vendor_id"], as_of)
     keep = c.drop(columns=[col for col in base.columns if col in c.columns])
     return pd.concat([keep, base, hist], axis=1)

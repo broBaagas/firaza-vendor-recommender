@@ -6,6 +6,7 @@ Jalankan: streamlit run app/streamlit_app.py
 
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +22,7 @@ from core.data import load_data  # noqa: E402
 from core.explain import explain, to_markdown  # noqa: E402
 from core.features import prepare_transactions  # noqa: E402
 from core.ranking import PRESETS, load_model, recommend  # noqa: E402
+from core.seasons import CALENDAR_END, peak_period  # noqa: E402
 
 TOP_COLOR, OTHER_COLOR = "#2a78d6", "#a3a29c"
 
@@ -78,6 +80,14 @@ def persen(x: float) -> str:
     return f"{x * 100:.0f}%"
 
 
+BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+
+
+def tgl_id(x) -> str:
+    d = pd.Timestamp(x)
+    return f"{d.day} {BULAN[d.month - 1]} {d.year}"
+
+
 def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
     fig = go.Figure()
     for is_top, name, color in [(False, "Kandidat lain", OTHER_COLOR), (True, f"{top_k} teratas", TOP_COLOR)]:
@@ -127,8 +137,10 @@ REPO_URL = "https://github.com/broBaagas/firaza-vendor-recommender"
 
 with st.expander("ℹ️ Cara pakai"):
     st.markdown(
-        "1. **Rekomendasi**: pilih material atau jasa, isi jumlah dan sisa hari sampai deadline "
-        "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**.\n"
+        "1. **Rekomendasi**: pilih material atau jasa, isi jumlah, sisa hari sampai deadline, dan tanggal pesan "
+        "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**. "
+        "Tanggal pesan di musim ramai (🌙 Ramadan–Lebaran, musim nikah) menurunkan peluang berhasil vendor "
+        "yang sering telat di periode itu.\n"
         "2. Baca kartu **3 vendor teratas**, **penjelasan** (rekomendasi, alasan, trade-off, saran), grafik "
         "harga vs peluang berhasil, dan tabel semua kandidat.\n"
         "3. Ganti **Prioritas** untuk melihat ranking berubah: *Seimbang*, *Termurah*, *Tercepat*, "
@@ -148,7 +160,7 @@ with st.expander("ℹ️ Cara pakai"):
 tab_rekomendasi, tab_vendor, tab_riwayat = st.tabs(["Rekomendasi", "Data Vendor", "Riwayat"])
 
 with tab_rekomendasi:
-    c1, c2, c3 = st.columns([2, 1, 1])
+    c1, c2, c3, c6 = st.columns([2, 1, 1, 1])
     material_id = c1.selectbox(
         "Material / jasa", materials.index,
         format_func=lambda m: f"{materials.loc[m, 'nama_material']} ({materials.loc[m, 'satuan']})")
@@ -156,6 +168,14 @@ with tab_rekomendasi:
     qty = c2.number_input(f"Jumlah ({m['satuan']})", min_value=1, value=int(m["qty_median"]), step=10)
     hari = c3.number_input("Hari tersedia sampai deadline", min_value=1, value=int(m["lead_time_max"]),
                            help=f"Lead time wajar untuk material ini {m['lead_time_min']}–{m['lead_time_max']} hari.")
+    hari_ini = min(date.today(), CALENDAR_END.date())
+    tanggal = c6.date_input("Tanggal pesan", value=hari_ini, min_value=hari_ini, max_value=CALENDAR_END.date(),
+                            format="DD/MM/YYYY",
+                            help="Menentukan musim ramai (Ramadan–Lebaran, musim nikah Syawal/Dzulhijjah), "
+                                 "saat vendor lebih sering telat.")
+    musim_input = peak_period(tanggal)
+    if musim_input:
+        c6.caption(f"🌙 {musim_input['nama']}")
 
     c4, c5 = st.columns([1, 2])
     pakai_budget = c4.checkbox("Batasi total budget")
@@ -175,7 +195,7 @@ with tab_rekomendasi:
 
     if st.button("Cari rekomendasi vendor", type="primary"):
         need = {"material_id": material_id, "qty": int(qty), "hari_tersedia": int(hari),
-                "budget": float(budget) if pakai_budget else None}
+                "budget": float(budget) if pakai_budget else None, "tanggal": tanggal.isoformat()}
         try:
             hasil_baru = recommend(need, preset=preset if weights is None else "Seimbang",
                                    weights=weights, data=data, model=model)
@@ -200,7 +220,14 @@ with tab_rekomendasi:
             st.subheader(f"Hasil untuk {k['qty']} {materials.loc[k['material_id'], 'satuan']} "
                          f"{materials.loc[k['material_id'], 'nama_material']}, {k['hari_tersedia']} hari")
             st.caption(f"{hasil['jumlah_kandidat']} vendor lolos saringan · preset {hasil['preset']} · "
+                       f"tanggal pesan {tgl_id(hasil['tanggal_pesan'])} · "
                        f"model {hasil['model']} · rekam jejak vendor dihitung s.d. 30 Sep 2026")
+            if hasil.get("musim_ramai"):
+                mr = hasil["musim_ramai"]
+                st.info(f"🌙 **Musim ramai: {mr['nama']}** ({tgl_id(mr['mulai'])} – {tgl_id(mr['selesai'])}). "
+                        "Pada periode ini vendor lebih sering telat, sehingga peluang berhasil umumnya lebih rendah "
+                        "dan ranking bisa berubah. Kolom *Berhasil saat musim ramai* menunjukkan rekam jejak "
+                        "vendor di periode serupa.")
 
             cols = st.columns(min(3, len(ranking)))
             for col, (_, r) in zip(cols, ranking.head(3).iterrows()):
@@ -227,8 +254,8 @@ with tab_rekomendasi:
             st.markdown("##### Semua kandidat")
             st.dataframe(
                 ranking[["peringkat", "nama_vendor", "kota", "harga_satuan", "total_harga", "lead_time_janji", "moq",
-                         "p_berhasil", "skor", "jumlah_transaksi", "tingkat_berhasil_10", "rata_hari_telat",
-                         "tingkat_cacat", "data_terbatas"]],
+                         "p_berhasil", "skor", "jumlah_transaksi", "tingkat_berhasil_10", "berhasil_musim_ramai",
+                         "rata_hari_telat", "tingkat_cacat", "data_terbatas"]],
                 hide_index=True, width="stretch",
                 column_config={
                     "peringkat": st.column_config.NumberColumn("#"),
@@ -243,6 +270,8 @@ with tab_rekomendasi:
                     "skor": st.column_config.NumberColumn("Skor", format="%.3f"),
                     "jumlah_transaksi": "Transaksi",
                     "tingkat_berhasil_10": st.column_config.NumberColumn("Berhasil (10 terakhir)", format="percent"),
+                    "berhasil_musim_ramai": st.column_config.NumberColumn("Berhasil saat musim ramai",
+                                                                          format="percent"),
                     "rata_hari_telat": st.column_config.NumberColumn("Rata telat (hari)", format="%.1f"),
                     "tingkat_cacat": st.column_config.NumberColumn("Tingkat cacat", format="percent"),
                     "data_terbatas": "Data terbatas",

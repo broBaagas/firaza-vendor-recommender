@@ -27,6 +27,23 @@ def test_recommend_saves_history(client, monkeypatch):
     assert body["riwayat_id"] == 7 and saved == ["api"]
 
 
+def test_recommend_with_peak_date(client):
+    body = client.post("/api/v1/recommend", json=NEED | {"tanggal": "2027-02-15"}).json()
+    assert body["tanggal_pesan"] == "2027-02-15"
+    assert body["musim_ramai"]["nama"] == "Ramadan-Lebaran 2027"
+    assert body["kebutuhan"]["tanggal"] == "2027-02-15"
+
+
+def test_recommend_default_date_not_peak(client):
+    body = client.post("/api/v1/recommend", json=NEED | {"dengan_penjelasan": False}).json()
+    assert body["musim_ramai"] is None and body["tanggal_pesan"]
+
+
+@pytest.mark.parametrize("tanggal", ["2027-12-01", "15-02-2027"])
+def test_recommend_rejects_bad_date(client, tanggal):
+    assert client.post("/api/v1/recommend", json=NEED | {"tanggal": tanggal}).status_code == 422
+
+
 def test_root_redirects_to_docs(client):
     r = client.get("/", follow_redirects=False)
     assert r.status_code in (302, 307) and r.headers["location"] == "/docs"

@@ -69,6 +69,10 @@ Aturan wajib:
    memeriksa hal itu lagi. Saran harus berupa tindakan yang berguna, misalnya vendor cadangan,
    pengecekan kualitas, negosiasi harga, atau memesan lebih awal saat peluang berhasil rendah.
 8. Jangan memakai heading atau format markdown; tulis kalimat biasa.
+9. Jika "musim"."musim_ramai" bernilai true, sebutkan bahwa pesanan jatuh di musim ramai
+   (pakai nama dari "musim"."nama") saat vendor lebih sering telat, bahwa peluang berhasil
+   sudah memperhitungkannya, dan bandingkan "berhasil_musim_ramai_persen" vendor bila relevan.
+   Sarankan memesan lebih awal atau menyiapkan vendor cadangan.
 """
 
 
@@ -154,6 +158,10 @@ def build_context(result: dict, materials=None) -> dict:
             "bobot_cepat_persen": _pct(bobot["w_cepat"]),
         },
         "jumlah_kandidat": int(result["jumlah_kandidat"]),
+        "musim": {
+            "musim_ramai": bool(result.get("musim_ramai")),
+            "nama": (result.get("musim_ramai") or {}).get("jenis"),
+        },
         "definisi": {
             "berhasil": f"barang datang paling lambat deadline dan cacat paling banyak {BATAS_CACAT_PERSEN}%",
             "batas_cacat_persen": BATAS_CACAT_PERSEN,
@@ -314,6 +322,11 @@ def template_explanation(ctx: dict) -> dict:
     ]
     if v1["lead_time_hari"] < k["hari_tersedia"]:
         alasan.append(f"Lead time {v1['lead_time_hari']} hari masih di bawah {k['hari_tersedia']} hari yang tersedia.")
+    musim = ctx.get("musim") or {}
+    if musim.get("musim_ramai"):
+        alasan.append(f"Pesanan jatuh di musim ramai ({musim['nama']}), saat vendor lebih sering telat; peluang "
+                      f"berhasil sudah memperhitungkannya. Saat musim ramai, {v1['nama_vendor']} berhasil "
+                      f"{v1['berhasil_musim_ramai_persen']}%.")
 
     trade_off = []
     for c in ctx["perbandingan"]:
@@ -336,6 +349,9 @@ def template_explanation(ctx: dict) -> dict:
     if v1["data_terbatas"]:
         saran.append(f"Rekam jejak {v1['nama_vendor']} masih sedikit ({v1['jumlah_transaksi']} transaksi); "
                      "minta sampel atau pesan bertahap dulu.")
+    if musim.get("musim_ramai"):
+        saran.append(f"Karena musim ramai ({musim['nama']}), pesan lebih awal dari biasanya dan konfirmasi kapasitas "
+                     "vendor sebelum memesan.")
     if v1["peluang_berhasil_persen"] < AMBANG_PELUANG_RENDAH:
         saran.append(f"Peluang berhasil di bawah {AMBANG_PELUANG_RENDAH}%; pertimbangkan menambah waktu pemesanan atau menyiapkan vendor cadangan.")
     if len(top) > 1:

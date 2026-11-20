@@ -14,6 +14,7 @@ import pandas as pd
 
 from core.data import load_data
 from core.features import LIMITED_DATA_MIN_TX, build_candidate_features
+from core.seasons import CALENDAR_END, peak_period
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model.joblib"
 
@@ -51,6 +52,14 @@ def validate_need(need: dict) -> None:
         raise ValueError("qty dan hari_tersedia harus > 0")
     if need.get("budget") is not None and need["budget"] <= 0:
         raise ValueError("budget harus > 0")
+    if need.get("tanggal"):
+        try:
+            tanggal = pd.Timestamp(need["tanggal"])
+        except (ValueError, TypeError) as e:
+            raise ValueError("tanggal harus berformat YYYY-MM-DD") from e
+        if tanggal > CALENDAR_END:
+            raise ValueError(f"tanggal paling lambat {CALENDAR_END:%Y-%m-%d} "
+                             "(kalender musim ramai belum mencakup tanggal setelahnya)")
 
 
 def filter_candidates(offers: pd.DataFrame, need: dict, vendors: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -112,6 +121,9 @@ def recommend(need: dict, preset: str = "Seimbang", top_k: int = 3, weights: dic
               data: dict | None = None, model=None) -> dict:
     """Pipeline lengkap: saring -> fitur -> prediksi -> skor -> top-k.
 
+    `need` opsional berisi `tanggal` (tanggal pesan, YYYY-MM-DD) yang menentukan fitur musim ramai.
+    Hasil memuat `tanggal_pesan` dan `musim_ramai` (periode dari core.seasons.peak_period, atau None).
+
     `data` default dari core.data.load_data(); `model` default dari models/model.joblib
     (jika belum ada, dipakai baseline).
     """
@@ -119,9 +131,15 @@ def recommend(need: dict, preset: str = "Seimbang", top_k: int = 3, weights: dic
     w = resolve_weights(preset, weights)
     data = data if data is not None else load_data()
     model = model if model is not None else load_model()
+    if need.get("tanggal"):
+        need = {**need, "tanggal": pd.Timestamp(need["tanggal"]).strftime("%Y-%m-%d")}
+    tanggal_pesan = need.get("tanggal") or (
+        pd.to_datetime(data["transactions"]["tanggal_pesan"]).max() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
     result = {
         "kebutuhan": need,
+        "tanggal_pesan": tanggal_pesan,
+        "musim_ramai": peak_period(tanggal_pesan),
         "preset": preset if weights is None else "Kustom",
         "bobot": w,
         "model": "baseline" if model is None else model.get("version", "model"),

@@ -44,7 +44,7 @@ streamlit run app/streamlit_app.py
 Buka http://localhost:8501, lalu:
 
 1. Di tab **Rekomendasi**, pilih material, isi jumlah dan hari tersedia sampai deadline (nilai awal sudah terisi), lalu klik **Cari rekomendasi vendor**.
-2. Ganti **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
+2. Isi **Tanggal pesan**. Jika jatuh di musim ramai (Ramadan–Lebaran atau musim nikah Syawal/Dzulhijjah, kalender di `core/seasons.py` sampai Juni 2027), muncul penanda 🌙; peluang berhasil vendor umumnya turun dan ranking bisa berubah, misalnya coba 15/02/2027 (menjelang Lebaran 2027). Ganti juga **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
 3. Centang **Batasi total budget** untuk menyaring vendor yang total harganya melebihi budget.
 4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor, daftar penawaran per material, dan **histori transaksi** per vendor (bisa disaring per material: tanggal pesan, deadline, tanggal datang, telat, cacat, berhasil atau tidak).
 5. Tab **Riwayat** menampilkan permintaan rekomendasi yang tersimpan di database (butuh `DATABASE_URL`). Panduan singkat juga tersedia di aplikasi lewat panel **ℹ️ Cara pakai**.
@@ -100,7 +100,7 @@ curl -X POST http://localhost:8000/api/v1/recommend -H "Content-Type: applicatio
   -d '{"material_id": "M03", "qty": 200, "hari_tersedia": 12, "preset": "Termurah"}'
 ```
 
-Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
+Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `tanggal` (tanggal pesan `YYYY-MM-DD`, menentukan musim ramai; paling lambat 2027-06-30), `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `tanggal_pesan`, `musim_ramai` (periode, atau `null`), `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
 
 Alternatif lewat Docker (image yang sama siap dipakai di layanan hosting container mana pun):
 
