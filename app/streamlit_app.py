@@ -24,7 +24,42 @@ from core.features import prepare_transactions  # noqa: E402
 from core.ranking import PRESETS, load_model, recommend  # noqa: E402
 from core.seasons import CALENDAR_END, holiday_on, peak_period  # noqa: E402
 
-TOP_COLOR, OTHER_COLOR = "#2a78d6", "#a3a29c"
+# Warna grafik: zamrud menengah agar terbaca di tema terang maupun gelap; abu netral untuk kandidat lain.
+TOP_COLOR, OTHER_COLOR = "#1F8A70", "#9AA5A1"
+
+# Satu-satunya elemen "berani": kartu vendor peringkat 1 (zamrud + label emas). Warna ditulis langsung
+# (bukan variabel tema) karena kontrasnya terbaca di tema terang maupun gelap.
+APP_CSS = """
+<style>
+.st-key-kartu_1 {
+    background: #0F5C4D;
+    border-color: #0F5C4D !important;
+}
+.st-key-kartu_1 p, .st-key-kartu_1 span, .st-key-kartu_1 div, .st-key-kartu_1 label,
+.st-key-kartu_1 [data-testid="stMetricValue"], .st-key-kartu_1 [data-testid="stMetricLabel"] {
+    color: #F3FAF7 !important;
+}
+.st-key-kartu_1 [data-testid="stCaptionContainer"] p { color: #CFE6DE !important; }
+.label-rekomendasi {
+    display: inline-block;
+    background: #D9A94A;
+    color: #2B1F06 !important;
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 0.25rem;
+}
+.st-key-kartu_1 .label-rekomendasi { color: #2B1F06 !important; }
+.peringkat-lain {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    opacity: 0.7;
+    margin-bottom: 0.25rem;
+}
+</style>
+"""
 
 st.set_page_config(page_title="Firaza Vendor Recommender", page_icon="📦", layout="wide")
 
@@ -174,10 +209,12 @@ data = get_data()
 model = get_model()
 materials = data["materials"].set_index("material_id")
 
-st.title("📦 Firaza Vendor Recommender")
-st.caption("Decision-support pemilihan vendor: prediksi peluang berhasil (tepat deadline dan cacat ≤ 3%) per vendor, "
-           "lalu ranking berdasarkan peluang berhasil, harga, dan kecepatan. Keputusan akhir tetap di tangan Anda. "
-           "**Data vendor dan transaksi sintetis.**")
+st.markdown(APP_CSS, unsafe_allow_html=True)
+st.title("Firaza Vendor Recommender")
+st.markdown("Pilih vendor yang paling mungkin mengirim **tepat deadline** dengan **cacat paling banyak 3%**, "
+            "tanpa mengorbankan harga. Model memperkirakan peluang berhasil tiap vendor dari rekam jejaknya; "
+            "keputusan akhir tetap di tangan Anda.")
+st.caption("Data vendor dan transaksi di aplikasi ini sintetis, dibuat untuk demonstrasi.")
 
 REPO_URL = "https://github.com/broBaagas/firaza-vendor-recommender"
 
@@ -257,7 +294,8 @@ with tab_rekomendasi:
                    "w_cepat": s3.slider("Bobot cepat", 0.0, 1.0, 0.2, 0.05)}
     else:
         w = PRESETS[preset]
-        c5.caption(f"Bobot: berhasil {w['w_berhasil']:.2f} · harga {w['w_harga']:.2f} · cepat {w['w_cepat']:.2f}")
+        c5.caption(f"Bobot: peluang berhasil {w['w_berhasil']:.0%}, harga {w['w_harga']:.0%}, "
+                   f"kecepatan {w['w_cepat']:.0%}.")
 
     if st.button("Cari rekomendasi vendor", type="primary"):
         need = {"material_id": material_id, "qty": int(qty), "hari_tersedia": int(hari),
@@ -285,20 +323,27 @@ with tab_rekomendasi:
             k = hasil["kebutuhan"]
             st.subheader(f"Hasil untuk {k['qty']} {materials.loc[k['material_id'], 'satuan']} "
                          f"{materials.loc[k['material_id'], 'nama_material']}, {k['hari_tersedia']} hari")
-            st.caption(f"{hasil['jumlah_kandidat']} vendor lolos saringan · preset {hasil['preset']} · "
-                       f"tanggal pesan {tgl_id(hasil['tanggal_pesan'])} · "
-                       f"model {hasil['model']} · rekam jejak vendor dihitung s.d. 30 Sep 2026")
-            calendar_section(hasil)
-
+            st.caption(f"{hasil['jumlah_kandidat']} vendor lolos saringan dengan prioritas {hasil['preset']}, "
+                       f"tanggal pesan {tgl_id(hasil['tanggal_pesan'])}. Model {hasil['model']}; rekam jejak vendor "
+                       "dihitung sampai 30 Sep 2026.")
             cols = st.columns(min(3, len(ranking)))
             for col, (_, r) in zip(cols, ranking.head(3).iterrows()):
-                with col.container(border=True):
-                    st.markdown(f"**#{r['peringkat']} {r['nama_vendor']}** · {r['kota']}")
+                with col.container(border=True, key=f"kartu_{r['peringkat']}"):
+                    if r["peringkat"] == 1:
+                        st.markdown('<span class="label-rekomendasi">Rekomendasi</span>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<span class="peringkat-lain">Peringkat {r["peringkat"]}</span>',
+                                    unsafe_allow_html=True)
+                    st.markdown(f"#### {r['nama_vendor']}")
+                    st.caption(r["kota"])
                     st.metric("Peluang berhasil", persen(r["p_berhasil"]))
-                    st.markdown(f"{rupiah(r['harga_satuan'])}/satuan · total {rupiah(r['total_harga'])}  \n"
-                                f"Lead time {r['lead_time_janji']} hari · skor {r['skor']:.3f}")
+                    st.markdown(f"{rupiah(r['harga_satuan'])} per satuan, total {rupiah(r['total_harga'])}  \n"
+                                f"Dikirim dalam {r['lead_time_janji']} hari  \n"
+                                f"Skor {r['skor']:.3f}")
                     if r["data_terbatas"]:
                         st.caption(f"⚠️ Data terbatas ({r['jumlah_transaksi']} transaksi)")
+
+            calendar_section(hasil)
 
             st.markdown("##### Penjelasan")
             penjelasan = st.session_state.get("penjelasan") or get_explanation(hasil)

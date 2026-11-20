@@ -207,6 +207,8 @@ Proyek ini berlisensi [MIT](LICENSE). Semua dependensi langsung berlisensi permi
 | jupyter, nbformat, nbclient, ipykernel (dev) | BSD-3-Clause |
 | matplotlib (dev) | PSF-based (permisif) |
 | huggingface_hub (hanya skrip deploy, opsional) | Apache-2.0 |
+| playwright (hanya untuk screenshot saat pengembangan, tidak di requirements) | Apache-2.0 |
+| Font Plus Jakarta Sans (dimuat dari Google Fonts lewat `.streamlit/config.toml`) | SIL Open Font License 1.1 |
 
 **Dependensi transitif yang perlu dicatat:** `certifi` (MPL-2.0) terpasang otomatis sebagai dependensi `requests`/`httpx`, yang dipakai Streamlit dan google-genai. Paket ini hanya berisi bundel sertifikat CA, dipakai apa adanya tanpa modifikasi, dan tidak ikut didistribusikan di repo ini. Tidak ada dependensi GPL/AGPL/LGPL/EPL. Daftar lengkap paket terpasang beserta lisensinya bisa dicetak dengan `pip-licenses` atau `pip show <paket>`.
 
