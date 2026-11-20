@@ -32,7 +32,7 @@ def test_custom_weights(app):
     app.radio[0].set_value("Kustom").run()
     app.button[0].click().run()
     assert not app.exception
-    assert any("preset Kustom" in c.value for c in app.caption)
+    assert any("prioritas Kustom" in c.value for c in app.caption)
 
 
 def test_peak_season_banner(app):
