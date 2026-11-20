@@ -128,10 +128,27 @@ class MusimRamai(BaseModel):
     selesai: str
 
 
+class HariBesar(BaseModel):
+    tanggal: str
+    nama: str
+
+
+class Kalender(BaseModel):
+    tanggal_pesan: str
+    deadline: str = Field(description="Tanggal pesan + hari_tersedia")
+    hari_besar_tanggal_pesan: str | None = Field(description="Nama hari besar jika tanggal pesan hari besar; null = hari biasa")
+    hari_besar_periode: list[HariBesar] = Field(description="Hari besar dari tanggal pesan s.d. deadline")
+    musim_ramai: MusimRamai | None
+    waktu_rawan: bool = Field(description="True jika ada hari besar s.d. deadline atau tanggal pesan di musim ramai")
+
+
 class RecommendResponse(BaseModel):
     kebutuhan: dict
     tanggal_pesan: str = Field(description="Tanggal pesan yang dipakai untuk fitur musim (YYYY-MM-DD)")
     musim_ramai: MusimRamai | None = Field(description="Periode musim ramai jika tanggal pesan jatuh di dalamnya")
+    kalender: Kalender
+    paling_aman: VendorHasil | None = Field(
+        description="Kandidat dengan P(berhasil) tertinggi; disarankan saat kalender.waktu_rawan. Tidak mengubah ranking.")
     preset: str
     bobot: dict[str, float]
     model: str = Field(description="Versi model ML yang dipakai")

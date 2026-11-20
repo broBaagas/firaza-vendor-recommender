@@ -73,6 +73,11 @@ Aturan wajib:
    (pakai nama dari "musim"."nama") saat vendor lebih sering telat, bahwa peluang berhasil
    sudah memperhitungkannya, dan bandingkan "berhasil_musim_ramai_persen" vendor bila relevan.
    Sarankan memesan lebih awal atau menyiapkan vendor cadangan.
+10. Jika "kalender"."waktu_rawan" bernilai true, sebut hari besar di "kalender"."hari_besar" (jika ada)
+   sebagai alasan risiko telat. Jika "vendor_paling_aman" berisi vendor (bukan teks), tulis satu saran
+   bahwa vendor itu punya peluang berhasil paling tinggi sebagai pilihan paling aman, dengan selisih
+   dari entri "perbandingan" untuk vendor itu (menurut peringkatnya, atau "vendor paling aman").
+   Tetap rekomendasikan peringkat 1.
 """
 
 
@@ -182,7 +187,31 @@ def build_context(result: dict, materials=None) -> dict:
         ctx["vendor_termurah"] = c
         if c["peringkat"] > len(top):
             ctx["perbandingan"].append(_compare(top[0], c, "peringkat 1 vs vendor termurah"))
+
+    kal = result.get("kalender") or {}
+    ctx["kalender"] = {
+        "waktu_rawan": bool(kal.get("waktu_rawan")),
+        "hari_besar": [h["nama"] for h in kal.get("hari_besar_periode", [])],
+    }
+    aman = result.get("paling_aman")
+    if aman and kal.get("waktu_rawan"):
+        if aman["peringkat"] == 1:
+            ctx["vendor_paling_aman"] = "peringkat 1 sekaligus peluang berhasil tertinggi"
+        else:
+            a = _vendor_ctx(aman)
+            ctx["vendor_paling_aman"] = a
+            if _comparison_for(ctx, a) is None:  # belum dibandingkan sebagai 3 teratas / termurah
+                ctx["perbandingan"].append(_compare(top[0], a, "peringkat 1 vs vendor paling aman"))
     return ctx
+
+
+def _comparison_for(ctx: dict, vendor: dict) -> dict | None:
+    """Entri `perbandingan` (peringkat 1 vs `vendor`) yang sudah ada di konteks, atau None."""
+    labels = {f"peringkat 1 vs peringkat {vendor['peringkat']}", "peringkat 1 vs vendor paling aman"}
+    termurah = ctx.get("vendor_termurah")
+    if isinstance(termurah, dict) and termurah["peringkat"] == vendor["peringkat"]:
+        labels.add("peringkat 1 vs vendor termurah")
+    return next((c for c in ctx["perbandingan"] if c["antara"] in labels), None)
 
 
 # ---------------------------------------------------------------------------
@@ -247,9 +276,11 @@ def _context_values(obj) -> set[float]:
 
 def _context_names(ctx: dict) -> list[str]:
     names = [ctx["kebutuhan"]["material"], ctx["kebutuhan"]["satuan"]]
+    names += (ctx.get("kalender") or {}).get("hari_besar", [])
     vendors = list(ctx["vendor_teratas"])
-    if isinstance(ctx.get("vendor_termurah"), dict):
-        vendors.append(ctx["vendor_termurah"])
+    for key in ("vendor_termurah", "vendor_paling_aman"):
+        if isinstance(ctx.get(key), dict):
+            vendors.append(ctx[key])
     for v in vendors:
         names += [v["nama_vendor"], v["kota"]]
     return names
@@ -349,9 +380,24 @@ def template_explanation(ctx: dict) -> dict:
     if v1["data_terbatas"]:
         saran.append(f"Rekam jejak {v1['nama_vendor']} masih sedikit ({v1['jumlah_transaksi']} transaksi); "
                      "minta sampel atau pesan bertahap dulu.")
+    kal = ctx.get("kalender") or {}
+    if kal.get("hari_besar"):
+        saran.append(f"Ada hari besar sebelum deadline ({', '.join(kal['hari_besar'])}); vendor bisa libur atau "
+                     "pengiriman melambat, jadi konfirmasi jadwal produksi dan kirim ke vendor.")
     if musim.get("musim_ramai"):
         saran.append(f"Karena musim ramai ({musim['nama']}), pesan lebih awal dari biasanya dan konfirmasi kapasitas "
                      "vendor sebelum memesan.")
+    aman = ctx.get("vendor_paling_aman")
+    if isinstance(aman, dict):
+        c = _comparison_for(ctx, aman)
+        harga = (f"{v1['nama_vendor']} {_dec(c['selisih_harga_persen'])}% {c['arah']['harga']}"
+                 if c["selisih_harga_persen"] else f"harganya sama dengan {v1['nama_vendor']}")
+        saran.append(f"Pilihan paling aman di waktu rawan: {aman['nama_vendor']} (peringkat {aman['peringkat']}) "
+                     f"dengan peluang berhasil tertinggi {aman['peluang_berhasil_persen']}%, "
+                     f"{abs(c['selisih_peluang_poin'])} poin di atas peringkat 1; sebagai gantinya {harga}.")
+    elif isinstance(aman, str):
+        saran.append(f"{v1['nama_vendor']} juga vendor dengan peluang berhasil tertinggi, jadi sudah pilihan paling "
+                     "aman untuk waktu rawan ini.")
     if v1["peluang_berhasil_persen"] < AMBANG_PELUANG_RENDAH:
         saran.append(f"Peluang berhasil di bawah {AMBANG_PELUANG_RENDAH}%; pertimbangkan menambah waktu pemesanan atau menyiapkan vendor cadangan.")
     if len(top) > 1:

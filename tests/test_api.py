@@ -39,7 +39,15 @@ def test_recommend_default_date_not_peak(client):
     assert body["musim_ramai"] is None and body["tanggal_pesan"]
 
 
-@pytest.mark.parametrize("tanggal", ["2027-12-01", "15-02-2027"])
+def test_recommend_holiday_calendar(client):
+    body = client.post("/api/v1/recommend",
+                       json=NEED | {"tanggal": "2027-08-17", "dengan_penjelasan": False}).json()
+    k = body["kalender"]
+    assert k["hari_besar_tanggal_pesan"] == "Hari Kemerdekaan Republik Indonesia" and k["waktu_rawan"]
+    assert body["paling_aman"]["p_berhasil"] == max(r["p_berhasil"] for r in body["ranking"])
+
+
+@pytest.mark.parametrize("tanggal", ["2028-01-15", "15-02-2027"])
 def test_recommend_rejects_bad_date(client, tanggal):
     assert client.post("/api/v1/recommend", json=NEED | {"tanggal": tanggal}).status_code == 422
 

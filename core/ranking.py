@@ -14,7 +14,7 @@ import pandas as pd
 
 from core.data import load_data
 from core.features import LIMITED_DATA_MIN_TX, build_candidate_features
-from core.seasons import CALENDAR_END, peak_period
+from core.seasons import CALENDAR_END, order_calendar
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model.joblib"
 
@@ -122,7 +122,8 @@ def recommend(need: dict, preset: str = "Seimbang", top_k: int = 3, weights: dic
     """Pipeline lengkap: saring -> fitur -> prediksi -> skor -> top-k.
 
     `need` opsional berisi `tanggal` (tanggal pesan, YYYY-MM-DD) yang menentukan fitur musim ramai.
-    Hasil memuat `tanggal_pesan` dan `musim_ramai` (periode dari core.seasons.peak_period, atau None).
+    Hasil memuat `tanggal_pesan`, `musim_ramai` (periode, atau None), `kalender` (hari besar di tanggal
+    pesan dan s.d. deadline, `waktu_rawan`), dan `paling_aman` (kandidat dengan P(berhasil) tertinggi).
 
     `data` default dari core.data.load_data(); `model` default dari models/model.joblib
     (jika belum ada, dipakai baseline).
@@ -136,10 +137,13 @@ def recommend(need: dict, preset: str = "Seimbang", top_k: int = 3, weights: dic
     tanggal_pesan = need.get("tanggal") or (
         pd.to_datetime(data["transactions"]["tanggal_pesan"]).max() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
+    kalender = order_calendar(tanggal_pesan, need["hari_tersedia"])
     result = {
         "kebutuhan": need,
         "tanggal_pesan": tanggal_pesan,
-        "musim_ramai": peak_period(tanggal_pesan),
+        "musim_ramai": kalender["musim_ramai"],
+        "kalender": kalender,
+        "paling_aman": None,
         "preset": preset if weights is None else "Kustom",
         "bobot": w,
         "model": "baseline" if model is None else model.get("version", "model"),
@@ -158,5 +162,15 @@ def recommend(need: dict, preset: str = "Seimbang", top_k: int = 3, weights: dic
     ranked = score(feats, predict_success(feats, model), weights=w)
 
     rows = ranked[RESULT_COLUMNS].round(4).to_dict(orient="records")
-    result.update(jumlah_kandidat=len(rows), ranking=rows, top=rows[:top_k])
+    result.update(jumlah_kandidat=len(rows), ranking=rows, top=rows[:top_k], paling_aman=safest(rows))
     return result
+
+
+def safest(rows: list[dict]) -> dict | None:
+    """Kandidat dengan P(berhasil) tertinggi (seri: lebih murah, lalu peringkat lebih baik).
+
+    Dipakai sebagai saran saat waktu rawan (hari besar / musim ramai); tidak mengubah ranking.
+    """
+    if not rows:
+        return None
+    return max(rows, key=lambda r: (round(r["p_berhasil"], 2), -r["harga_satuan"], -r["peringkat"]))

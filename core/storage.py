@@ -117,6 +117,8 @@ def _row_params(result: dict, explanation: dict | None, kanal: str) -> dict:
         "pesan": result.get("pesan"),
         "tanggal_pesan": result.get("tanggal_pesan"),
         "musim_ramai": (result.get("musim_ramai") or {}).get("nama"),
+        "hari_besar": [h["nama"] for h in (result.get("kalender") or {}).get("hari_besar_periode", [])],
+        "paling_aman": (result.get("paling_aman") or {}).get("nama_vendor"),
     }
     return {
         "kanal": kanal,

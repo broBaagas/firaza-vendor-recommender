@@ -44,7 +44,7 @@ streamlit run app/streamlit_app.py
 Buka http://localhost:8501, lalu:
 
 1. Di tab **Rekomendasi**, pilih material, isi jumlah dan hari tersedia sampai deadline (nilai awal sudah terisi), lalu klik **Cari rekomendasi vendor**.
-2. Isi **Tanggal pesan**. Jika jatuh di musim ramai (Ramadan–Lebaran atau musim nikah Syawal/Dzulhijjah, kalender di `core/seasons.py` sampai Juni 2027), muncul penanda 🌙; peluang berhasil vendor umumnya turun dan ranking bisa berubah, misalnya coba 15/02/2027 (menjelang Lebaran 2027). Ganti juga **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
+2. Isi **Tanggal pesan** (sampai 31/12/2027). Bagian **📅 Kalender pesanan** di hasil menyebut apakah tanggal itu **hari besar** nasional (🎉, misalnya 17/08/2027 Hari Kemerdekaan) atau **hari biasa**, hari besar lain sampai deadline, dan **musim ramai** (🌙 Ramadan–Lebaran atau musim nikah Syawal/Dzulhijjah). Di waktu rawan ini muncul **saran vendor dengan peluang berhasil paling tinggi**; ranking utama tidak berubah. Musim ramai adalah fitur model (peluang berhasil turun, ranking bisa berubah, coba 15/02/2027); hari besar belum menjadi fitur model karena data historis tidak mencatatnya. Kalender ada di `core/seasons.py`; hari besar keagamaan 2027 masih perkiraan dan perlu dicocokkan dengan SKB libur nasional. Ganti juga **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
 3. Centang **Batasi total budget** untuk menyaring vendor yang total harganya melebihi budget.
 4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor, daftar penawaran per material, dan **histori transaksi** per vendor (bisa disaring per material: tanggal pesan, deadline, tanggal datang, telat, cacat, berhasil atau tidak).
 5. Tab **Riwayat** menampilkan permintaan rekomendasi yang tersimpan di database (butuh `DATABASE_URL`). Panduan singkat juga tersedia di aplikasi lewat panel **ℹ️ Cara pakai**.
@@ -100,7 +100,7 @@ curl -X POST http://localhost:8000/api/v1/recommend -H "Content-Type: applicatio
   -d '{"material_id": "M03", "qty": 200, "hari_tersedia": 12, "preset": "Termurah"}'
 ```
 
-Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `tanggal` (tanggal pesan `YYYY-MM-DD`, menentukan musim ramai; paling lambat 2027-06-30), `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `tanggal_pesan`, `musim_ramai` (periode, atau `null`), `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
+Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `tanggal` (tanggal pesan `YYYY-MM-DD`, menentukan musim ramai dan hari besar; paling lambat 2027-12-31), `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `tanggal_pesan`, `musim_ramai` (periode, atau `null`), `kalender` (hari besar di tanggal pesan dan sampai deadline, `waktu_rawan`), `paling_aman` (kandidat dengan peluang berhasil tertinggi), `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
 
 Alternatif lewat Docker (image yang sama siap dipakai di layanan hosting container mana pun):
 
@@ -215,7 +215,7 @@ Proyek ini berlisensi [MIT](LICENSE). Semua dependensi langsung berlisensi permi
 **Data**
 - Dataset vendor, penawaran, dan transaksi: **sintetis**, dibuat oleh `generator/generate.py` di repo ini (bukan data asli Firaza, bukan ditulis LLM).
 - Rentang harga material dikalibrasi dari listing publik Tokopedia, Lazada, Ruparupa, dan Indotrading (diakses 29 Oktober 2026). Tautan per material ada di [docs/asumsi_data.md](docs/asumsi_data.md#kalibrasi-harga).
-- Kalender musim ramai (Ramadan, Idulfitri, Iduladha) memakai perkiraan tanggal kalender hijriah pemerintah Indonesia 2025–2026 ([core/seasons.py](core/seasons.py)).
+- Kalender musim ramai dan hari besar nasional (Ramadan, Idulfitri, Iduladha, dan libur nasional lain) memakai tanggal libur nasional Indonesia 2025–2026 dan perkiraan hisab/astronomis untuk hari besar keagamaan 2027 ([core/seasons.py](core/seasons.py)); perlu dicocokkan dengan SKB 3 Menteri tentang hari libur nasional dan cuti bersama 2027.
 - Konteks masalah: dokumen use case *CP-03 Firaza: Vendor Recommendation & Procurement Assistant*, Dicoding Bootcamp Batch 15.
 
 **Model dan layanan**

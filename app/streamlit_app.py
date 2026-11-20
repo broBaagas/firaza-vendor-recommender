@@ -22,7 +22,7 @@ from core.data import load_data  # noqa: E402
 from core.explain import explain, to_markdown  # noqa: E402
 from core.features import prepare_transactions  # noqa: E402
 from core.ranking import PRESETS, load_model, recommend  # noqa: E402
-from core.seasons import CALENDAR_END, peak_period  # noqa: E402
+from core.seasons import CALENDAR_END, holiday_on, peak_period  # noqa: E402
 
 TOP_COLOR, OTHER_COLOR = "#2a78d6", "#a3a29c"
 
@@ -110,6 +110,52 @@ def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
     return fig
 
 
+def calendar_section(hasil: dict) -> None:
+    """Bagian 📅 Kalender pesanan: status hari (hari besar / biasa), hari besar s.d. deadline,
+    musim ramai, dan saran vendor paling aman saat waktu rawan."""
+    k = hasil.get("kalender")
+    if not k:
+        return
+    st.markdown("##### 📅 Kalender pesanan")
+    pesan = tgl_id(k["tanggal_pesan"])
+    lines = [f"**{pesan}** adalah **hari besar: {k['hari_besar_tanggal_pesan']}**." if k["hari_besar_tanggal_pesan"]
+             else f"**{pesan}** adalah **hari biasa** (bukan hari besar nasional)."]
+    lain = [h for h in k["hari_besar_periode"] if h["tanggal"] != k["tanggal_pesan"]]
+    if lain:
+        daftar = "; ".join(f"{tgl_id(h['tanggal'])} {h['nama']}" for h in lain)
+        lines.append(f"Sampai deadline {tgl_id(k['deadline'])} ada hari besar: {daftar}. Vendor bisa libur atau "
+                     "pengiriman melambat di sekitar tanggal itu.")
+    elif not k["hari_besar_tanggal_pesan"]:
+        lines.append(f"Tidak ada hari besar sampai deadline {tgl_id(k['deadline'])}.")
+    mr = k.get("musim_ramai")
+    if mr:
+        lines.append(f"🌙 Masuk **musim ramai {mr['nama']}** ({tgl_id(mr['mulai'])} – {tgl_id(mr['selesai'])}): vendor "
+                     "lebih sering telat. Peluang berhasil di bawah sudah memperhitungkan musim ini (lihat kolom "
+                     "*Berhasil saat musim ramai*).")
+    elif k["hari_besar_periode"]:
+        lines.append("Catatan: hari besar belum menjadi fitur model (data historis tidak mencatatnya), jadi peluang "
+                     "berhasil di bawah belum memperhitungkannya. Karena itu disarankan memilih vendor paling aman.")
+
+    aman = hasil.get("paling_aman")
+    with st.container(border=True):
+        st.markdown("  \n".join(lines))
+        if k["waktu_rawan"] and aman:
+            v1 = hasil["ranking"][0]
+            if aman["peringkat"] == 1:
+                st.success(f"✅ **Saran waktu rawan:** tetap pilih **{aman['nama_vendor']}**. Vendor peringkat 1 ini juga "
+                           f"yang peluang berhasilnya paling tinggi ({persen(aman['p_berhasil'])}).")
+            else:
+                selisih = aman["harga_satuan"] / v1["harga_satuan"] - 1
+                harga = (f"{selisih * 100:.1f}% lebih mahal".replace(".", ",") if selisih > 0 else
+                         f"{-selisih * 100:.1f}% lebih murah".replace(".", ",") if selisih < 0 else "harga sama")
+                st.warning(
+                    f"🛡️ **Saran waktu rawan:** pilih **{aman['nama_vendor']}** (peringkat {aman['peringkat']}), "
+                    f"vendor dengan **peluang berhasil tertinggi: {persen(aman['p_berhasil'])}** vs "
+                    f"{persen(v1['p_berhasil'])} milik {v1['nama_vendor']}. Harga {rupiah(aman['harga_satuan'])}/satuan "
+                    f"({harga} dari peringkat 1), lead time {aman['lead_time_janji']} hari. Peringkat 1 tetap "
+                    "pilihan terbaik menurut bobot prioritas; pilih vendor ini jika ketepatan waktu paling penting.")
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_explanation(hasil: dict) -> dict | None:
     """Di-cache agar kebutuhan yang sama tidak memanggil Gemini berulang kali (hemat kuota)."""
@@ -139,8 +185,9 @@ with st.expander("ℹ️ Cara pakai"):
     st.markdown(
         "1. **Rekomendasi**: pilih material atau jasa, isi jumlah, sisa hari sampai deadline, dan tanggal pesan "
         "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**. "
-        "Tanggal pesan di musim ramai (🌙 Ramadan–Lebaran, musim nikah) menurunkan peluang berhasil vendor "
-        "yang sering telat di periode itu.\n"
+        "Bagian **📅 Kalender pesanan** memberi tahu apakah tanggal itu hari besar (🎉, misalnya 17 Agustus) "
+        "atau hari biasa, hari besar sampai deadline, dan musim ramai (🌙 Ramadan–Lebaran, musim nikah). "
+        "Di waktu rawan ini muncul saran vendor dengan peluang berhasil paling tinggi.\n"
         "2. Baca kartu **3 vendor teratas**, **penjelasan** (rekomendasi, alasan, trade-off, saran), grafik "
         "harga vs peluang berhasil, dan tabel semua kandidat.\n"
         "3. Ganti **Prioritas** untuk melihat ranking berubah: *Seimbang*, *Termurah*, *Tercepat*, "
@@ -173,7 +220,10 @@ with tab_rekomendasi:
                             format="DD/MM/YYYY",
                             help="Menentukan musim ramai (Ramadan–Lebaran, musim nikah Syawal/Dzulhijjah), "
                                  "saat vendor lebih sering telat.")
+    hari_besar_input = holiday_on(tanggal)
     musim_input = peak_period(tanggal)
+    if hari_besar_input:
+        c6.caption(f"🎉 {hari_besar_input}")
     if musim_input:
         c6.caption(f"🌙 {musim_input['nama']}")
 
@@ -222,12 +272,7 @@ with tab_rekomendasi:
             st.caption(f"{hasil['jumlah_kandidat']} vendor lolos saringan · preset {hasil['preset']} · "
                        f"tanggal pesan {tgl_id(hasil['tanggal_pesan'])} · "
                        f"model {hasil['model']} · rekam jejak vendor dihitung s.d. 30 Sep 2026")
-            if hasil.get("musim_ramai"):
-                mr = hasil["musim_ramai"]
-                st.info(f"🌙 **Musim ramai: {mr['nama']}** ({tgl_id(mr['mulai'])} – {tgl_id(mr['selesai'])}). "
-                        "Pada periode ini vendor lebih sering telat, sehingga peluang berhasil umumnya lebih rendah "
-                        "dan ranking bisa berubah. Kolom *Berhasil saat musim ramai* menunjukkan rekam jejak "
-                        "vendor di periode serupa.")
+            calendar_section(hasil)
 
             cols = st.columns(min(3, len(ranking)))
             for col, (_, r) in zip(cols, ranking.head(3).iterrows()):

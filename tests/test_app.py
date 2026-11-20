@@ -41,8 +41,24 @@ def test_peak_season_banner(app):
     assert any("Ramadan-Lebaran 2027" in c.value for c in app.caption)  # penanda di bawah input
     app.button[0].click().run()
     assert not app.exception
-    assert any("Musim ramai: Ramadan-Lebaran 2027" in i.value for i in app.info)
+    assert any("musim ramai Ramadan-Lebaran 2027" in m.value for m in app.markdown)
     assert any("tanggal pesan 15 Feb 2027" in c.value for c in app.caption)
+    assert any("Saran waktu rawan" in s.value for s in [*app.success, *app.warning])
+
+
+def test_holiday_section(app):
+    from datetime import date
+    app.date_input[0].set_value(date(2027, 8, 17)).run()
+    assert any("Hari Kemerdekaan Republik Indonesia" in c.value for c in app.caption)
+    app.button[0].click().run()
+    assert not app.exception
+    assert any("adalah **hari besar: Hari Kemerdekaan Republik Indonesia**" in m.value for m in app.markdown)
+    assert any("Saran waktu rawan" in s.value for s in [*app.success, *app.warning])
+
+
+def test_normal_day_section(app):
+    app.button[0].click().run()
+    assert any("adalah **hari biasa**" in m.value for m in app.markdown)
 
 
 def test_usage_guide_present(app):

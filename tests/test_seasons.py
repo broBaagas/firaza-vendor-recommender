@@ -6,8 +6,9 @@ import pytest
 from core.data import load_data
 from core.explain import build_context, template_explanation, validate_explanation
 from core.features import build_candidate_features, prepare_transactions
-from core.ranking import filter_candidates, recommend
-from core.seasons import CALENDAR_END, PEAK_PERIODS, is_peak, peak_period
+from core.ranking import filter_candidates, recommend, safest
+from core.seasons import (CALENDAR_END, HOLIDAYS, PEAK_PERIODS, holiday_on, holidays_between, is_peak,
+                          order_calendar, peak_period)
 
 NEED = {"material_id": "M03", "qty": 200, "hari_tersedia": 12}
 LEBARAN_2027 = "2027-02-15"
@@ -69,7 +70,7 @@ def test_peak_lowers_success_probability(data):
 
 def test_date_after_calendar_rejected(data):
     with pytest.raises(ValueError, match="kalender"):
-        recommend({**NEED, "tanggal": "2027-12-01"}, data=data)
+        recommend({**NEED, "tanggal": "2028-01-15"}, data=data)
     with pytest.raises(ValueError, match="YYYY-MM-DD"):
         recommend({**NEED, "tanggal": "bukan-tanggal"}, data=data)
 
@@ -82,6 +83,57 @@ def test_template_mentions_peak_and_passes_validation(data):
     text = " ".join(expl["alasan"] + expl["saran"])
     assert "musim ramai (Ramadan-Lebaran)" in text
     assert validate_explanation(expl, ctx)["valid"]
+
+
+def test_holiday_lookup():
+    assert holiday_on("2027-08-17") == "Hari Kemerdekaan Republik Indonesia"
+    assert holiday_on("2027-08-18") is None
+    assert [h["nama"] for h in holidays_between("2027-08-10", "2027-08-20")] == [
+        "Maulid Nabi Muhammad SAW", "Hari Kemerdekaan Republik Indonesia"]
+    assert all(pd.Timestamp(d) <= CALENDAR_END for d, _ in HOLIDAYS)
+
+
+def test_order_calendar_holiday_day():
+    k = order_calendar("2027-08-17", 12)
+    assert k["hari_besar_tanggal_pesan"] == "Hari Kemerdekaan Republik Indonesia"
+    assert k["deadline"] == "2027-08-29" and k["waktu_rawan"] and k["musim_ramai"] is None
+
+
+def test_order_calendar_holiday_before_deadline():
+    k = order_calendar("2027-12-20", 10)  # Natal 25 Des di masa pengiriman
+    assert k["hari_besar_tanggal_pesan"] is None
+    assert [h["nama"] for h in k["hari_besar_periode"]] == ["Hari Raya Natal"] and k["waktu_rawan"]
+
+
+def test_order_calendar_normal_day():
+    k = order_calendar(BIASA_2026, 12)
+    assert k["hari_besar_tanggal_pesan"] is None and k["hari_besar_periode"] == []
+    assert not k["waktu_rawan"]
+
+
+def test_safest_is_highest_success(data):
+    r = recommend({**NEED, "tanggal": "2027-08-17"}, data=data)
+    assert r["kalender"]["waktu_rawan"]
+    best = max(round(x["p_berhasil"], 2) for x in r["ranking"])
+    assert round(r["paling_aman"]["p_berhasil"], 2) == best
+    assert safest([]) is None
+
+
+@pytest.mark.parametrize("tanggal, material", [("2027-08-17", "M03"), ("2027-08-10", "M07"),
+                                               ("2027-12-20", "M01"), ("2027-02-15", "M03")])
+def test_template_safest_advice_passes_validation(data, tanggal, material):
+    r = recommend({"material_id": material, "qty": 500 if material == "M07" else 200, "hari_tersedia": 12,
+                   "tanggal": tanggal}, data=data)
+    ctx = build_context(r, data["materials"])
+    assert ctx["kalender"]["waktu_rawan"] and "vendor_paling_aman" in ctx
+    expl = template_explanation(ctx)
+    assert any("paling aman" in s for s in expl["saran"])
+    assert validate_explanation(expl, ctx)["valid"]
+
+
+def test_no_safest_advice_on_normal_day(data):
+    ctx = build_context(recommend({**NEED, "tanggal": BIASA_2026}, data=data), data["materials"])
+    assert "vendor_paling_aman" not in ctx and ctx["kalender"] == {"waktu_rawan": False, "hari_besar": []}
 
 
 def test_context_without_peak(data):
