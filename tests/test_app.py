@@ -23,7 +23,7 @@ def test_app_loads(app):
 def test_recommendation_flow(app):
     app.button[0].click().run()
     assert not app.exception
-    assert len(app.metric) == 3  # kartu 3 teratas
+    assert sum(m.label == "Peluang berhasil" for m in app.metric) == 3  # kartu 3 teratas
     assert any(m.value.startswith("Pilih ") and "**Trade-off**" in m.value for m in app.markdown)
     assert any("Penjelasan template" in c.value for c in app.caption)
 
@@ -33,6 +33,20 @@ def test_custom_weights(app):
     app.button[0].click().run()
     assert not app.exception
     assert any("preset Kustom" in c.value for c in app.caption)
+
+
+def test_usage_guide_present(app):
+    assert any(e.label.endswith("Cara pakai") for e in app.expander)
+
+
+def test_vendor_transaction_history(app):
+    vendor_box = app.selectbox(key="vendor_histori")
+    assert not app.exception
+    assert any(m.label == "Transaksi" for m in app.metric)
+    vendor_box.set_value(vendor_box.options[1]).run()
+    app.selectbox(key="mat_histori").set_value(app.selectbox(key="mat_histori").options[1]).run()
+    assert not app.exception
+    assert any(c.value.startswith("Berhasil = datang") for c in app.caption)
 
 
 def test_no_candidates_shows_warning(app):

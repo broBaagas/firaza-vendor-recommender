@@ -46,7 +46,8 @@ Buka http://localhost:8501, lalu:
 1. Di tab **Rekomendasi**, pilih material, isi jumlah dan hari tersedia sampai deadline (nilai awal sudah terisi), lalu klik **Cari rekomendasi vendor**.
 2. Ganti **Prioritas** (Seimbang / Termurah / Tercepat / Kustom) untuk melihat ranking berubah. Pilih Kustom untuk mengatur bobot dengan slider.
 3. Centang **Batasi total budget** untuk menyaring vendor yang total harganya melebihi budget.
-4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor dan daftar penawaran per material.
+4. Buka tab **Data Vendor** untuk melihat rekam jejak semua vendor, daftar penawaran per material, dan **histori transaksi** per vendor (bisa disaring per material: tanggal pesan, deadline, tanggal datang, telat, cacat, berhasil atau tidak).
+5. Tab **Riwayat** menampilkan permintaan rekomendasi yang tersimpan di database (butuh `DATABASE_URL`). Panduan singkat juga tersedia di aplikasi lewat panel **ℹ️ Cara pakai**.
 
 Yang ditampilkan: kartu 3 vendor teratas, penjelasan (rekomendasi, alasan, trade-off, saran), grafik harga vs peluang berhasil, dan tabel semua kandidat. Vendor dengan < 5 transaksi ditandai ⚠️ data terbatas.
 

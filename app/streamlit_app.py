@@ -1,4 +1,4 @@
-"""Antarmuka Streamlit: halaman Rekomendasi + tab Data Vendor (lihat saja).
+"""Antarmuka Streamlit: tab Rekomendasi, Data Vendor (rekam jejak, penawaran, histori transaksi), dan Riwayat.
 
 Memanggil modul core langsung, bukan lewat API.
 Jalankan: streamlit run app/streamlit_app.py
@@ -47,8 +47,15 @@ def get_model():
 
 
 @st.cache_data
-def vendor_stats(_data: dict) -> pd.DataFrame:
+def prepared_transactions(_data: dict) -> pd.DataFrame:
     tx = prepare_transactions(_data["transactions"])
+    tx["telat_deadline"] = (tx["tanggal_datang"] - tx["deadline"]).dt.days.clip(lower=0)
+    return tx
+
+
+@st.cache_data
+def vendor_stats(_data: dict) -> pd.DataFrame:
+    tx = prepared_transactions(_data)
     stats = tx.groupby("vendor_id").agg(
         transaksi=("transaksi_id", "size"),
         tingkat_berhasil=("berhasil", "mean"),
@@ -115,6 +122,28 @@ st.title("📦 Firaza Vendor Recommender")
 st.caption("Decision-support pemilihan vendor: prediksi peluang berhasil (tepat deadline dan cacat ≤ 3%) per vendor, "
            "lalu ranking berdasarkan peluang berhasil, harga, dan kecepatan. Keputusan akhir tetap di tangan Anda. "
            "**Data vendor dan transaksi sintetis.**")
+
+REPO_URL = "https://github.com/broBaagas/firaza-vendor-recommender"
+
+with st.expander("ℹ️ Cara pakai"):
+    st.markdown(
+        "1. **Rekomendasi**: pilih material atau jasa, isi jumlah dan sisa hari sampai deadline "
+        "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**.\n"
+        "2. Baca kartu **3 vendor teratas**, **penjelasan** (rekomendasi, alasan, trade-off, saran), grafik "
+        "harga vs peluang berhasil, dan tabel semua kandidat.\n"
+        "3. Ganti **Prioritas** untuk melihat ranking berubah: *Seimbang*, *Termurah*, *Tercepat*, "
+        "atau *Kustom* (atur bobot sendiri).\n"
+        "4. **Data Vendor**: rekam jejak semua vendor, penawaran per material, dan histori transaksi per vendor.\n"
+        "5. **Riwayat**: permintaan rekomendasi yang pernah dibuat (tersimpan di database).\n\n"
+        "**Istilah.** *P(berhasil)* = peluang barang datang paling lambat di deadline **dan** cacat ≤ 3%, "
+        "diprediksi model machine learning dari rekam jejak vendor dan kondisi pesanan. "
+        "*Skor* = gabungan P(berhasil), harga murah, dan lead time cepat sesuai bobot prioritas. "
+        "⚠️ *Data terbatas* = vendor dengan kurang dari 5 transaksi, prediksinya kurang pasti. "
+        "Ranking ditentukan model, bukan Gemini; Gemini hanya menulis penjelasannya.\n\n"
+        f"Kode sumber, dokumentasi, dan evaluasi model: [GitHub]({REPO_URL}) · "
+        f"[Laporan evaluasi]({REPO_URL}/blob/main/docs/evaluasi_model.md) · "
+        f"[Asumsi data]({REPO_URL}/blob/main/docs/asumsi_data.md)"
+    )
 
 tab_rekomendasi, tab_vendor, tab_riwayat = st.tabs(["Rekomendasi", "Data Vendor", "Riwayat"])
 
@@ -254,6 +283,56 @@ with tab_vendor:
                        "harga_satuan": st.column_config.NumberColumn("Harga/satuan (Rp)", format="localized"),
                        "lead_time_janji": "Lead time (hari)", "moq": "MOQ"},
     )
+
+    st.markdown("##### Histori transaksi per vendor")
+    tx_all = prepared_transactions(data)
+    vendors = data["vendors"].set_index("vendor_id")
+    h1, h2 = st.columns(2)
+    vid = h1.selectbox("Vendor", vendors.index, key="vendor_histori",
+                       format_func=lambda v: f"{vendors.loc[v, 'nama_vendor']} ({vendors.loc[v, 'kota']})")
+    vtx = tx_all[tx_all["vendor_id"] == vid]
+    mat_opsi = ["Semua", *sorted(vtx["material_id"].unique())]
+    mat_h = h2.selectbox("Material", mat_opsi, key="mat_histori",
+                         format_func=lambda x: x if x == "Semua" else materials.loc[x, "nama_material"])
+    if mat_h != "Semua":
+        vtx = vtx[vtx["material_id"] == mat_h]
+
+    if vtx.empty:
+        st.info("Vendor ini belum punya transaksi.")
+    else:
+        g1, g2, g3, g4 = st.columns(4)
+        g1.metric("Transaksi", len(vtx))
+        g2.metric("Berhasil", persen(vtx["berhasil"].mean()))
+        g3.metric("Telat dari deadline", persen((vtx["telat_deadline"] > 0).mean()))
+        g4.metric("Rata cacat", f"{vtx['persen_cacat'].mean() * 100:.1f}%")
+        tabel = vtx.sort_values("tanggal_pesan", ascending=False).assign(
+            material=lambda d: d["material_id"].map(materials["nama_material"]),
+            musim_ramai=lambda d: d["musim_ramai"].astype(bool),
+            berhasil=lambda d: d["berhasil"].astype(bool),
+        )
+        st.dataframe(
+            tabel[["transaksi_id", "tanggal_pesan", "material", "qty", "harga_satuan", "total_harga",
+                   "lead_time_janji", "deadline", "tanggal_datang", "telat_deadline", "qty_cacat", "persen_cacat",
+                   "musim_ramai", "berhasil"]],
+            hide_index=True, width="stretch", height=320,
+            column_config={
+                "transaksi_id": "ID",
+                "tanggal_pesan": st.column_config.DateColumn("Dipesan"),
+                "material": "Material", "qty": "Jumlah",
+                "harga_satuan": st.column_config.NumberColumn("Harga/satuan (Rp)", format="localized"),
+                "total_harga": st.column_config.NumberColumn("Total (Rp)", format="localized"),
+                "lead_time_janji": "Janji (hari)",
+                "deadline": st.column_config.DateColumn("Deadline"),
+                "tanggal_datang": st.column_config.DateColumn("Datang"),
+                "telat_deadline": st.column_config.NumberColumn("Telat (hari)"),
+                "qty_cacat": "Cacat (pcs)",
+                "persen_cacat": st.column_config.NumberColumn("Cacat", format="percent"),
+                "musim_ramai": "Musim ramai",
+                "berhasil": "Berhasil",
+            },
+        )
+        st.caption("Berhasil = datang paling lambat di deadline dan cacat ≤ 3%. Histori inilah yang dipakai model "
+                   "untuk menghitung rekam jejak vendor (hanya transaksi yang sudah datang sebelum tanggal pesanan).")
 
 with tab_riwayat:
     st.caption("Riwayat permintaan rekomendasi dari aplikasi ini dan dari API, disimpan di database (Supabase Postgres).")
