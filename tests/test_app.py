@@ -63,6 +63,7 @@ def test_normal_day_section(app):
 
 def test_usage_guide_present(app):
     assert any(e.label.endswith("Cara pakai") for e in app.expander)
+    assert any("Apa itu peluang berhasil?" in m.value for m in app.markdown)
 
 
 def test_vendor_transaction_history(app):
