@@ -24,16 +24,36 @@ from core.features import prepare_transactions  # noqa: E402
 from core.ranking import PRESETS, load_model, recommend  # noqa: E402
 from core.seasons import CALENDAR_END, holiday_on, peak_period  # noqa: E402
 
-# Warna grafik: zamrud menengah agar terbaca di tema terang maupun gelap; abu netral untuk kandidat lain.
-TOP_COLOR, OTHER_COLOR = "#1F8A70", "#9AA5A1"
+# Palet monokrom per mode. "ink" = warna teks utama, "paper" = latar. Kartu vendor peringkat 1 memakai
+# kontras terbalik (latar ink, teks paper): satu-satunya elemen yang menonjol.
+PALETTE = {
+    "light": {"ink": "#111111", "paper": "#FFFFFF", "muted": "#6B6B6B", "soft": "#F6F6F6",
+              "other": "#B5B5B5"},
+    "dark": {"ink": "#F2F2F2", "paper": "#000000", "muted": "#9A9A9A", "soft": "#0F0F0F",
+             "other": "#5C5C5C"},
+}
 
-# Satu-satunya elemen "berani": kartu vendor peringkat 1 (zamrud + label emas). Warna ditulis langsung
-# (bukan variabel tema) karena kontrasnya terbaca di tema terang maupun gelap.
+
+def theme_mode() -> str:
+    """'light' atau 'dark' sesuai tema yang aktif di browser (default terang)."""
+    try:
+        return "dark" if st.context.theme.type == "dark" else "light"
+    except Exception:  # noqa: BLE001 - st.context.theme belum tersedia (mis. saat tes)
+        return "light"
+
+
+def app_css(mode: str) -> str:
+    p = PALETTE[mode]
+    return APP_CSS.replace("__INK__", p["ink"]).replace("__PAPER__", p["paper"]) \
+        .replace("__MUTED__", p["muted"]).replace("__SOFT__", p["soft"])
+
+
 APP_CSS = """
 <style>
 [data-testid="stMainBlockContainer"] { max-width: 1120px; padding-top: 3rem; }
+[data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] p { color: __PAPER__ !important; }
 .brand {
-    color: #1F8A70;
+    color: __MUTED__;
     font-weight: 700;
     font-size: 0.95rem;
     margin: 0 0 0.35rem 0;
@@ -53,27 +73,27 @@ h1.hero-title {
     max-width: 68ch;
     margin: 0 0 0.25rem 0;
 }
-.st-key-form_kebutuhan { background: rgba(31, 138, 112, 0.07); }
+.st-key-form_kebutuhan { background: __SOFT__; }
 .st-key-kartu_1 {
-    background: #0F5C4D;
-    border-color: #0F5C4D !important;
+    background: __INK__;
+    border-color: __INK__ !important;
 }
 .st-key-kartu_1 p, .st-key-kartu_1 span, .st-key-kartu_1 div, .st-key-kartu_1 label,
 .st-key-kartu_1 [data-testid="stMetricValue"], .st-key-kartu_1 [data-testid="stMetricLabel"] {
-    color: #F3FAF7 !important;
+    color: __PAPER__ !important;
 }
-.st-key-kartu_1 [data-testid="stCaptionContainer"] p { color: #CFE6DE !important; }
+.st-key-kartu_1 [data-testid="stCaptionContainer"] p { color: __PAPER__ !important; opacity: 0.7; }
 .label-rekomendasi {
     display: inline-block;
-    background: #D9A94A;
-    color: #2B1F06 !important;
+    background: __PAPER__;
+    color: __INK__ !important;
     font-weight: 700;
     font-size: 0.78rem;
     padding: 0.1rem 0.6rem;
     border-radius: 999px;
     margin-bottom: 0.25rem;
 }
-.st-key-kartu_1 .label-rekomendasi { color: #2B1F06 !important; }
+.st-key-kartu_1 .label-rekomendasi { color: __INK__ !important; }
 .peringkat-lain {
     display: inline-block;
     font-size: 0.78rem;
@@ -163,13 +183,14 @@ def tgl_id(x) -> str:
 
 
 def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
+    p = PALETTE[MODE]
     fig = go.Figure()
-    for is_top, name, color in [(False, "Kandidat lain", OTHER_COLOR), (True, f"{top_k} teratas", TOP_COLOR)]:
+    for is_top, name, color in [(False, "Kandidat lain", p["other"]), (True, f"{top_k} teratas", p["ink"])]:
         d = ranking[(ranking["peringkat"] <= top_k) == is_top]
         fig.add_trace(go.Scatter(
             x=d["harga_satuan"], y=d["p_berhasil"], mode="markers+text", name=name,
             text=d["nama_vendor"], textposition="top center",
-            marker={"size": 12, "color": color, "line": {"width": 2, "color": "rgba(255,255,255,0.9)"}},
+            marker={"size": 12, "color": color, "line": {"width": 2, "color": p["paper"]}},
             customdata=d[["peringkat", "lead_time_janji", "skor"]],
             hovertemplate=("<b>%{text}</b> (peringkat %{customdata[0]})<br>Harga: Rp%{x:,.0f}<br>"
                            "P(berhasil): %{y:.0%}<br>Lead time: %{customdata[1]} hari<br>"
@@ -216,7 +237,7 @@ def calendar_section(hasil: dict) -> None:
         if k["waktu_rawan"] and aman:
             v1 = hasil["ranking"][0]
             if aman["peringkat"] == 1:
-                st.success(f"✅ **Saran waktu rawan:** tetap pilih **{aman['nama_vendor']}**. Vendor peringkat 1 ini juga "
+                st.success(f"**Saran waktu rawan:** tetap pilih **{aman['nama_vendor']}**. Vendor peringkat 1 ini juga "
                            f"yang peluang berhasilnya paling tinggi ({persen(aman['p_berhasil'])}).")
             else:
                 selisih = aman["harga_satuan"] / v1["harga_satuan"] - 1
@@ -248,7 +269,8 @@ data = get_data()
 model = get_model()
 materials = data["materials"].set_index("material_id")
 
-st.markdown(APP_CSS, unsafe_allow_html=True)
+MODE = theme_mode()
+st.markdown(app_css(MODE), unsafe_allow_html=True)
 st.markdown(
     '<p class="brand">Firaza Vendor Recommender</p>'
     '<h1 class="hero-title">Vendor mana yang paling aman untuk pesanan ini?</h1>'

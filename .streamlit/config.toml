@@ -1,7 +1,7 @@
-# Tema aplikasi Firaza: hijau zamrud (sajadah, Lebaran) sebagai warna utama, emas antik (pita
-# hampers) hanya untuk penanda vendor rekomendasi (lihat CSS di app/streamlit_app.py).
+# Tema aplikasi Firaza: monokrom. Terang = latar putih, teks hitam; gelap = latar hitam, teks putih.
+# Kartu vendor rekomendasi menonjol lewat kontras terbalik (lihat app_css di app/streamlit_app.py).
 # Font: Plus Jakarta Sans (SIL Open Font License 1.1), dimuat dari Google Fonts.
-# Varian terang dan gelap mengikuti pengaturan sistem pengguna (bisa diganti di menu ⋮ > Settings).
+# Varian terang/gelap mengikuti pengaturan sistem pengguna (bisa diganti di menu ⋮ > Settings).
 
 [theme]
 font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -11,31 +11,26 @@ buttonRadius = "0.5rem"
 showWidgetBorder = true
 
 [theme.light]
-primaryColor = "#0F5C4D"
-backgroundColor = "#F6F8F7"
-secondaryBackgroundColor = "#E8EFEC"
-textColor = "#1D2B28"
-linkColor = "#0F5C4D"
-borderColor = "#CFDAD6"
-dataframeHeaderBackgroundColor = "#E8EFEC"
-greenColor = "#0F5C4D"
-greenBackgroundColor = "#DCEBE5"
-greenTextColor = "#0B4A3E"
-yellowColor = "#B8862B"
-yellowBackgroundColor = "#F5ECD9"
-yellowTextColor = "#6E4F14"
+primaryColor = "#111111"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F3F3"
+textColor = "#111111"
+linkColor = "#111111"
+borderColor = "#DEDEDE"
+dataframeHeaderBackgroundColor = "#F3F3F3"
+# Kotak st.success (saran waktu rawan) netral, bukan hijau.
+greenColor = "#111111"
+greenBackgroundColor = "#F0F0F0"
+greenTextColor = "#111111"
 
 [theme.dark]
-primaryColor = "#1F8A70"
-backgroundColor = "#0F1A18"
-secondaryBackgroundColor = "#18302B"
-textColor = "#E4ECE9"
-linkColor = "#6FD1B8"
-borderColor = "#2A433D"
-dataframeHeaderBackgroundColor = "#18302B"
-greenColor = "#3FB59A"
-greenBackgroundColor = "#173A31"
-greenTextColor = "#9FE3CF"
-yellowColor = "#D9A94A"
-yellowBackgroundColor = "#3A2E15"
-yellowTextColor = "#F0D49A"
+primaryColor = "#F2F2F2"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#161616"
+textColor = "#F2F2F2"
+linkColor = "#F2F2F2"
+borderColor = "#2E2E2E"
+dataframeHeaderBackgroundColor = "#161616"
+greenColor = "#F2F2F2"
+greenBackgroundColor = "#1A1A1A"
+greenTextColor = "#F2F2F2"
