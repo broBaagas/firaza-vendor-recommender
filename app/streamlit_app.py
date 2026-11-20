@@ -31,6 +31,29 @@ TOP_COLOR, OTHER_COLOR = "#1F8A70", "#9AA5A1"
 # (bukan variabel tema) karena kontrasnya terbaca di tema terang maupun gelap.
 APP_CSS = """
 <style>
+[data-testid="stMainBlockContainer"] { max-width: 1120px; padding-top: 3rem; }
+.brand {
+    color: #1F8A70;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin: 0 0 0.35rem 0;
+}
+h1.hero-title {
+    font-size: clamp(1.9rem, 3.6vw, 2.75rem);
+    line-height: 1.12;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    max-width: 22ch;
+    padding: 0;
+    margin: 0 0 0.75rem 0;
+}
+.hero-sub {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    max-width: 68ch;
+    margin: 0 0 0.25rem 0;
+}
+.st-key-form_kebutuhan { background: rgba(31, 138, 112, 0.07); }
 .st-key-kartu_1 {
     background: #0F5C4D;
     border-color: #0F5C4D !important;
@@ -226,10 +249,13 @@ model = get_model()
 materials = data["materials"].set_index("material_id")
 
 st.markdown(APP_CSS, unsafe_allow_html=True)
-st.title("Firaza Vendor Recommender")
-st.markdown("Pilih vendor yang paling mungkin mengirim **tepat deadline** dengan **cacat paling banyak 3%**, "
-            "tanpa mengorbankan harga. Model memperkirakan peluang berhasil tiap vendor dari rekam jejaknya; "
-            "keputusan akhir tetap di tangan Anda.")
+st.markdown(
+    '<p class="brand">Firaza Vendor Recommender</p>'
+    '<h1 class="hero-title">Vendor mana yang paling aman untuk pesanan ini?</h1>'
+    '<p class="hero-sub">Isi kebutuhan Anda. Model memperkirakan peluang tiap vendor mengirim '
+    '<b>tepat deadline</b> dengan <b>cacat paling banyak 3%</b>, lalu mengurutkannya bersama harga dan '
+    'kecepatan. Keputusan akhir tetap di tangan Anda.</p>',
+    unsafe_allow_html=True)
 st.caption("Data vendor dan transaksi di aplikasi ini sintetis, dibuat untuk demonstrasi.")
 
 REPO_URL = "https://github.com/broBaagas/firaza-vendor-recommender"
@@ -280,12 +306,13 @@ with tab_rekomendasi:
     box.markdown("##### Kebutuhan pengadaan")
     c1, c2, c3, c6 = box.columns([2, 1, 1, 1])
     material_id = c1.selectbox(
-        "Material / jasa", materials.index,
+        "Material atau jasa", materials.index,
         format_func=lambda m: f"{materials.loc[m, 'nama_material']} ({materials.loc[m, 'satuan']})")
     m = materials.loc[material_id]
     qty = c2.number_input(f"Jumlah ({m['satuan']})", min_value=1, value=int(m["qty_median"]), step=10)
-    hari = c3.number_input("Hari tersedia sampai deadline", min_value=1, value=int(m["lead_time_max"]),
-                           help=f"Lead time wajar untuk material ini {m['lead_time_min']}–{m['lead_time_max']} hari.")
+    hari = c3.number_input("Sisa waktu (hari)", min_value=1, value=int(m["lead_time_max"]),
+                           help="Jumlah hari dari tanggal pesan sampai barang harus sudah diterima (deadline). "
+                                f"Lead time wajar untuk material ini {m['lead_time_min']}–{m['lead_time_max']} hari.")
     hari_ini = min(date.today(), CALENDAR_END.date())
     tanggal = c6.date_input("Tanggal pesan", value=hari_ini, min_value=hari_ini, max_value=CALENDAR_END.date(),
                             format="DD/MM/YYYY",
@@ -302,10 +329,11 @@ with tab_rekomendasi:
         status.append("Tanggal pesan adalah hari biasa, di luar musim ramai.")
     box.caption(" ".join(status))
 
-    c5, c4 = box.columns([2, 1])
-    preset = c5.radio("Prioritas", [*PRESETS, "Kustom"], horizontal=True,
-                      help="Bobot skor: peluang berhasil, harga murah, dan lead time cepat.")
-    pakai_budget = c4.checkbox("Batasi total budget")
+    c5, c4 = box.columns([3, 2], gap="large")
+    preset = c5.segmented_control(
+        "Prioritas", [*PRESETS, "Kustom"], default="Seimbang", key="prioritas",
+        help="Menentukan bobot skor: peluang berhasil, harga murah, dan lead time cepat.") or "Seimbang"
+    pakai_budget = c4.toggle("Batasi total budget")
     budget = (c4.number_input("Budget total (Rp)", min_value=1_000, value=10_000_000, step=500_000)
               if pakai_budget else None)
     weights = None
@@ -359,7 +387,8 @@ with tab_rekomendasi:
                     st.markdown(f"#### {r['nama_vendor']}")
                     st.caption(r["kota"])
                     st.metric("Peluang berhasil", persen(r["p_berhasil"]))
-                    st.markdown(f"{rupiah(r['harga_satuan'])} per satuan, total {rupiah(r['total_harga'])}  \n"
+                    st.markdown(f"{rupiah(r['harga_satuan'])} per satuan  \n"
+                                f"Total {rupiah(r['total_harga'])}  \n"
                                 f"Dikirim dalam {r['lead_time_janji']} hari  \n"
                                 f"Skor {desimal(r['skor'], 3)}")
                     if r["data_terbatas"]:

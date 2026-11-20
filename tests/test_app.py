@@ -25,7 +25,7 @@ def test_recommendation_flow(app):
     app.button[0].click().run()
     assert not app.exception
     assert sum(m.label == "Peluang berhasil" for m in app.metric) == 3  # kartu 3 teratas
-    kartu = [m.value for m in app.markdown if "per satuan, total Rp" in m.value]
+    kartu = [m.value for m in app.markdown if "per satuan" in m.value and "Total Rp" in m.value]
     assert len(kartu) == 3 and not any(re.search(r"Rp\d+,\d", k) for k in kartu)  # rupiah pakai titik ribuan
     assert all(re.search(r"Skor 0,\d{3}", k) for k in kartu)
     assert any(m.value.startswith("Pilih ") and "**Trade-off**" in m.value for m in app.markdown)
@@ -33,7 +33,7 @@ def test_recommendation_flow(app):
 
 
 def test_custom_weights(app):
-    app.radio[0].set_value("Kustom").run()
+    app.segmented_control(key="prioritas").set_value("Kustom").run()
     app.button[0].click().run()
     assert not app.exception
     assert any("prioritas Kustom" in c.value for c in app.caption)
