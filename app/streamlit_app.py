@@ -249,6 +249,24 @@ def calendar_section(hasil: dict) -> None:
                     f"{persen(v1['p_berhasil'])} milik {v1['nama_vendor']}. Harga {rupiah(aman['harga_satuan'])}/satuan "
                     f"({harga} dari peringkat 1), lead time {aman['lead_time_janji']} hari. Peringkat 1 tetap "
                     "pilihan terbaik menurut bobot prioritas; pilih vendor ini jika ketepatan waktu paling penting.")
+            urut = (pd.DataFrame(hasil["ranking"])
+                    .sort_values(["p_berhasil", "harga_satuan"], ascending=[False, True]).head(5))
+            urut.insert(0, "urutan", range(1, len(urut) + 1))
+            st.markdown("**Urutan vendor dari peluang berhasil tertinggi** (acuan saat waktu rawan)")
+            st.dataframe(
+                as_percent(urut, ["p_berhasil"])[["urutan", "nama_vendor", "p_berhasil", "harga_satuan",
+                                                  "lead_time_janji", "peringkat"]],
+                hide_index=True, width="stretch", key="urutan_aman",
+                column_config={
+                    "urutan": st.column_config.NumberColumn("#"),
+                    "nama_vendor": "Vendor",
+                    "p_berhasil": st.column_config.ProgressColumn("Peluang berhasil", min_value=0, max_value=100,
+                                                                  format="%.0f%%"),
+                    "harga_satuan": st.column_config.NumberColumn("Harga/satuan (Rp)", format="localized"),
+                    "lead_time_janji": st.column_config.NumberColumn("Lead time (hari)"),
+                    "peringkat": st.column_config.NumberColumn("Peringkat skor"),
+                },
+            )
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

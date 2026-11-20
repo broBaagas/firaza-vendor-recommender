@@ -57,12 +57,16 @@ def test_holiday_section(app):
     app.button[0].click().run()
     assert not app.exception
     assert any("adalah **hari besar: Hari Kemerdekaan Republik Indonesia**" in m.value for m in app.markdown)
+    urut = next(df.value for df in app.dataframe if "urutan" in df.value.columns)
+    assert list(urut["urutan"]) == list(range(1, len(urut) + 1))
+    assert urut["p_berhasil"].is_monotonic_decreasing  # diurutkan dari peluang berhasil tertinggi
     assert any("Saran waktu rawan" in s.value for s in [*app.success, *app.warning])
 
 
 def test_normal_day_section(app):
     app.button[0].click().run()
     assert any("adalah **hari biasa**" in m.value for m in app.markdown)
+    assert not any("Urutan vendor dari peluang berhasil tertinggi" in m.value for m in app.markdown)
 
 
 def test_usage_guide_present(app):
