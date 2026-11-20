@@ -205,13 +205,40 @@ def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
     return fig
 
 
+AMBANG_AMAN = 0.80  # sama dengan ambang saran di penjelasan (core.explain.AMBANG_PELUANG_RENDAH)
+
+
+def reliability_chart(stats: pd.DataFrame) -> go.Figure:
+    """Bar horizontal satu seri: tingkat berhasil per vendor, diurutkan, dengan garis ambang 80%."""
+    p = PALETTE[MODE]
+    d = stats.sort_values("tingkat_berhasil")
+    warna = [p["ink"] if v >= AMBANG_AMAN else p["other"] for v in d["tingkat_berhasil"]]
+    fig = go.Figure(go.Bar(
+        x=d["tingkat_berhasil"], y=d["nama_vendor"], orientation="h",
+        marker={"color": warna, "cornerradius": 3},
+        customdata=d[["kategori", "transaksi", "rata_hari_telat", "rata_cacat"]],
+        hovertemplate=("<b>%{y}</b> (%{customdata[0]})<br>Berhasil: %{x:.0%}<br>Transaksi: %{customdata[1]}<br>"
+                       "Rata telat: %{customdata[2]:.1f} hari<br>Rata cacat: %{customdata[3]:.1%}<extra></extra>"),
+    ))
+    fig.add_vline(x=AMBANG_AMAN, line={"color": p["muted"], "width": 1, "dash": "dot"},
+                  annotation_text="80% (aman)", annotation_position="top",
+                  annotation_font={"color": p["muted"], "size": 11})
+    fig.update_layout(
+        title={"text": "Tingkat berhasil per vendor", "x": 0, "font": {"size": 15}},
+        height=max(220, 18 * len(d) + 90), margin={"l": 10, "r": 10, "t": 50, "b": 10},
+        xaxis={"tickformat": ".0%", "range": [0, 1.02], "title": None, "gridcolor": "rgba(128,128,128,0.15)"},
+        yaxis={"title": None}, bargap=0.55, showlegend=False,
+    )
+    return fig
+
+
 def calendar_section(hasil: dict) -> None:
-    """Bagian 📅 Kalender pesanan: status hari (hari besar / biasa), hari besar s.d. deadline,
+    """Bagian Kalender pesanan: status hari (hari besar / biasa), hari besar s.d. deadline,
     musim ramai, dan saran vendor paling aman saat waktu rawan."""
     k = hasil.get("kalender")
     if not k:
         return
-    st.markdown("##### 📅 Kalender pesanan")
+    st.markdown("##### Kalender pesanan")
     pesan = tgl_id(k["tanggal_pesan"])
     lines = [f"**{pesan}** adalah **hari besar: {k['hari_besar_tanggal_pesan']}**." if k["hari_besar_tanggal_pesan"]
              else f"**{pesan}** adalah **hari biasa** (bukan hari besar nasional)."]
@@ -304,7 +331,7 @@ with st.expander("ℹ️ Cara pakai"):
     st.markdown(
         "1. **Rekomendasi**: pilih material atau jasa, isi jumlah, sisa hari sampai deadline, dan tanggal pesan "
         "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**. "
-        "Bagian **📅 Kalender pesanan** memberi tahu apakah tanggal itu hari besar (🎉, misalnya 17 Agustus) "
+        "Bagian **Kalender pesanan** memberi tahu apakah tanggal itu hari besar (🎉, misalnya 17 Agustus) "
         "atau hari biasa, hari besar sampai deadline, dan musim ramai (🌙 Ramadan–Lebaran, musim nikah). "
         "Di waktu rawan ini muncul saran vendor dengan peluang berhasil paling tinggi.\n"
         "2. Baca kartu **3 vendor teratas**, **penjelasan** (rekomendasi, alasan, trade-off, saran), grafik "
@@ -483,6 +510,25 @@ with tab_vendor:
     kategori = st.segmented_control("Kategori", ["Semua", *sorted(stats["kategori"].unique())], default="Semua",
                                     key="kategori_vendor")
     tampil = stats if kategori in (None, "Semua") else stats[stats["kategori"] == kategori]
+
+    tx_kat = prepared_transactions(data)
+    tx_kat = tx_kat[tx_kat["vendor_id"].isin(tampil["vendor_id"])]
+    ramai, biasa = tx_kat[tx_kat["musim_ramai"] == 1], tx_kat[tx_kat["musim_ramai"] == 0]
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Vendor", len(tampil))
+    k2.metric("Transaksi", f"{len(tx_kat):,}".replace(",", "."))
+    k3.metric("Berhasil", persen(tx_kat["berhasil"].mean()) if len(tx_kat) else "–",
+              help="Datang paling lambat di deadline dan cacat ≤ 3%.")
+    k4.metric("Berhasil saat musim ramai", persen(ramai["berhasil"].mean()) if len(ramai) else "–",
+              delta=(f"{(ramai['berhasil'].mean() - biasa['berhasil'].mean()) * 100:.0f} poin dari hari biasa"
+                     if len(ramai) and len(biasa) else None),
+              delta_color="off", help="Ramadan–Lebaran dan musim nikah Syawal/Dzulhijjah.")
+
+    st.plotly_chart(reliability_chart(tampil), width="stretch", theme="streamlit", key="grafik_vendor")
+    aman = int((tampil["tingkat_berhasil"] >= AMBANG_AMAN).sum())
+    tegas = "putih" if MODE == "dark" else "hitam"
+    st.caption(f"Batang {tegas}: {aman} vendor dengan tingkat berhasil 80% ke atas (umumnya aman). Batang abu: "
+               f"{len(tampil) - aman} vendor di bawah 80%. Arahkan kursor ke batang untuk rinciannya.")
     st.dataframe(
         as_percent(tampil, ["rata_cacat", "tingkat_berhasil"])[
             ["vendor_id", "nama_vendor", "kategori", "kota", "tanggal_bergabung", "transaksi", "tingkat_berhasil",
@@ -582,7 +628,20 @@ with tab_riwayat:
                 st.info("Belum ada riwayat. Riwayat muncul setelah Anda menekan **Cari rekomendasi vendor**.")
             else:
                 riwayat["material"] = riwayat["material_id"].map(materials["nama_material"])
-                riwayat["budget"] = pd.to_numeric(riwayat["budget"], errors="coerce")  # None → sel kosong
+                budget = pd.to_numeric(riwayat["budget"], errors="coerce")
+                riwayat["budget"] = [rupiah(b) if pd.notna(b) else "–" for b in budget]
+                kanal_raw = riwayat["kanal"].copy()
+                riwayat["kanal"] = kanal_raw.map({"streamlit": "Aplikasi", "api": "API"}).fillna(kanal_raw)
+                riwayat["sumber_penjelasan"] = riwayat["sumber_penjelasan"].map(
+                    {"gemini": "Gemini", "template": "Template"}).fillna("–")
+                r1, r2, r3, r4 = st.columns(4)
+                r1.metric("Permintaan", len(riwayat))
+                kanal = kanal_raw.value_counts()
+                r2.metric("Dari aplikasi / API", f"{kanal.get('streamlit', 0)} / {kanal.get('api', 0)}")
+                r3.metric("Penjelasan dari Gemini", persen((riwayat["sumber_penjelasan"] == "Gemini").mean()),
+                          help="Sisanya memakai template cadangan (Gemini tidak tersedia atau tidak lolos validasi).")
+                top = riwayat["vendor_teratas"].dropna()
+                r4.metric("Vendor #1 tersering", top.mode().iat[0] if len(top) else "–")
                 st.dataframe(
                     riwayat[["id", "waktu", "kanal", "material", "qty", "hari_tersedia", "budget", "preset",
                              "jumlah_kandidat", "vendor_teratas", "sumber_penjelasan", "versi_model"]],
@@ -590,7 +649,7 @@ with tab_riwayat:
                     column_config={
                         "id": "#", "waktu": st.column_config.DatetimeColumn("Waktu", format="D MMM YYYY, HH:mm"),
                         "kanal": "Kanal", "material": "Material", "qty": "Jumlah", "hari_tersedia": "Hari",
-                        "budget": st.column_config.NumberColumn("Budget (Rp)", format="localized"),
+                        "budget": "Budget",
                         "preset": "Prioritas", "jumlah_kandidat": "Kandidat", "vendor_teratas": "Vendor #1",
                         "sumber_penjelasan": "Penjelasan", "versi_model": "Model",
                     },
