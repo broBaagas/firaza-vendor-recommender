@@ -103,3 +103,19 @@ def test_supabase_roundtrip(result):
         conn = storage.get_connection()
         conn.run("DELETE FROM riwayat_rekomendasi WHERE id = :id AND kanal = 'tes'", id=new_id)
         conn.close()
+
+
+def test_clean_url_tolerates_copy_mistakes():
+    from core.storage import _clean_url
+    url = "postgresql://u:p@h:5432/postgres"
+    for raw in [url, f'"{url}"', f"'{url}'", f"DATABASE_URL={url}", f'  DATABASE_URL = "{url}" ']:
+        assert _clean_url(raw) == url
+
+
+def test_describe_error_hides_password_and_hints(monkeypatch):
+    import pg8000.exceptions
+    from core.storage import describe_error
+    e = pg8000.exceptions.DatabaseError({"C": "28P01", "M": "password authentication failed for user x"})
+    assert "28P01" in describe_error(e) and "password salah" in describe_error(e)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:rahasia123@h:5432/postgres")
+    assert "rahasia123" not in describe_error(RuntimeError("gagal rahasia123"))

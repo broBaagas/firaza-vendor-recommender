@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import ssl
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -80,11 +81,39 @@ def _ssl_context() -> ssl.SSLContext:
     return ssl.create_default_context()
 
 
+def _clean_url(raw: str) -> str:
+    """Toleran terhadap salah salin di Secrets: kutip ganda/tunggal ikut tersalin, atau prefiks 'DATABASE_URL='."""
+    url = re.sub(r"^\s*DATABASE_URL\s*=\s*", "", raw, flags=re.IGNORECASE).strip()
+    return url.strip("\"'").strip()
+
+
+_HINTS = {
+    "28P01": "password salah; salin ulang DATABASE_URL persis dari .env",
+    "28000": "user/password ditolak; periksa bagian postgres.<project-ref>:<password> di DATABASE_URL",
+    "3D000": "nama database salah; akhir DATABASE_URL harus /postgres",
+    "XX000": "project Supabase tidak ditemukan (ter-pause, atau user/host di DATABASE_URL salah)",
+}
+
+
+def describe_error(e: Exception) -> str:
+    """Pesan error database yang aman ditampilkan (tanpa password) plus petunjuk penyebab."""
+    info = e.args[0] if e.args and isinstance(e.args[0], dict) else {}
+    if info:
+        code, msg = info.get("C", "?"), info.get("M", "")
+        hint = _HINTS.get(code) or ("project ter-pause atau user salah" if "not found" in msg else "")
+        text = f"{type(e).__name__} {code}: {msg}"
+        return f"{text} ({hint})" if hint else text
+    text = f"{type(e).__name__}: {e}"
+    url = os.environ.get("DATABASE_URL", "")
+    password = unquote(urlparse(_clean_url(url)).password or "") if url else ""
+    return text.replace(password, "***") if password else text
+
+
 def get_connection():
     """Koneksi pg8000.native dari DATABASE_URL (TLS terverifikasi)."""
     import pg8000.native
 
-    url = os.environ.get("DATABASE_URL", "").strip()
+    url = _clean_url(os.environ.get("DATABASE_URL", ""))
     if not url:
         raise RuntimeError("DATABASE_URL belum diatur")
     u = urlparse(url)
@@ -157,7 +186,7 @@ def safe_save(result: dict, explanation: dict | None, kanal: str) -> int | None:
     try:
         return save_recommendation(result, explanation, kanal)
     except Exception as e:
-        log.warning("Gagal menyimpan riwayat: %r", e)
+        log.warning("Gagal menyimpan riwayat: %s", describe_error(e))
         return None
 
 

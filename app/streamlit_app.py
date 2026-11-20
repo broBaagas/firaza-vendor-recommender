@@ -433,7 +433,7 @@ with tab_riwayat:
         try:
             riwayat = pd.DataFrame(storage.list_history(limit=50))
         except Exception as e:
-            st.error(f"Gagal membaca riwayat: {type(e).__name__}")
+            st.error(f"Gagal membaca riwayat: {storage.describe_error(e)}")
         else:
             if riwayat.empty:
                 st.write("Belum ada riwayat.")
