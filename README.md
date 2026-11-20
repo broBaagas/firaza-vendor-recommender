@@ -101,6 +101,15 @@ curl -X POST http://localhost:8000/api/v1/recommend -H "Content-Type: applicatio
 
 Body: `material_id`, `qty`, `hari_tersedia`, opsional `budget`, `preset` (`Seimbang`/`Termurah`/`Tercepat`/`Kustom`), `bobot` (wajib jika `Kustom`), `top_k` (1–10, default 3), `dengan_penjelasan` (default `true`). Respons berisi `top`, `ranking` (semua kandidat), dan `penjelasan` (`sumber`: `gemini` atau `template`, beserta hasil `validasi` angka).
 
+Alternatif lewat Docker (image yang sama siap dipakai di layanan hosting container mana pun):
+
+```powershell
+docker build -t firaza-api .
+docker run -p 7860:7860 --env-file .env firaza-api   # buka http://localhost:7860/docs
+```
+
+`--env-file .env` opsional; tanpa itu API tetap jalan dengan penjelasan template dan tanpa menyimpan riwayat.
+
 ### Penjelasan Gemini
 
 Isi `GEMINI_API_KEY` di `.env` (lokal) atau Secrets (Streamlit Cloud). Model default `gemini-3.5-flash-lite`, bisa diganti lewat env `GEMINI_MODEL`. Gemini menerima konteks JSON (kebutuhan, 3 vendor teratas, dan selisih yang sudah dihitung) dan hanya menulis penjelasan. Setiap angka di penjelasan dicek terhadap konteks dan rekomendasi wajib menyebut vendor peringkat 1; jika tidak lolos, kuota habis, atau API gagal, dipakai template cadangan.
@@ -109,9 +118,9 @@ Isi `GEMINI_API_KEY` di `.env` (lokal) atau Secrets (Streamlit Cloud). Model def
 
 Isi `DATABASE_URL` (Supabase, connection string **Session pooler**) di `.env` atau Secrets. Setiap permintaan dari Streamlit dan API disimpan ke tabel `riwayat_rekomendasi` (dibuat otomatis, Row Level Security aktif sehingga tertutup dari Data API publik Supabase) dan bisa dilihat di tab **Riwayat**. Koneksi memakai TLS yang diverifikasi dengan sertifikat CA Supabase di `certs/supabase-ca.crt`. Tanpa `DATABASE_URL`, aplikasi tetap jalan tanpa menyimpan riwayat.
 
-### Belum tersedia di versi ini
+### Catatan hosting API
 
-- Live URL untuk API (Render).
+Live URL proyek ini adalah aplikasi Streamlit (https://firaza.streamlit.app/), yang memanggil modul `core` secara langsung sehingga tidak bergantung pada server API. Inference API **tidak dihosting publik**: rencana awal memakai Render (free tier), tetapi Render mensyaratkan kartu kredit, dan Hugging Face Spaces kini mensyaratkan langganan PRO untuk Space Docker. API dijalankan secara lokal atau lewat Docker seperti di atas. Konfigurasi siap pakai tetap disertakan: `render.yaml` (Render) dan `Dockerfile` + `scripts/deploy_hf_space.py` (Hugging Face Spaces).
 
 ## Struktur
 
@@ -137,6 +146,8 @@ Isi `DATABASE_URL` (Supabase, connection string **Session pooler**) di `.env` at
 ├── models/               # model.joblib (v1) + metrics.json
 ├── app/streamlit_app.py  # antarmuka Streamlit
 ├── api/main.py           # FastAPI: POST /api/v1/recommend
+├── scripts/              # deploy_hf_space.py (opsional)
+├── Dockerfile            # image inference API
 └── tests/                # pytest
 ```
 
@@ -194,7 +205,27 @@ Proyek ini berlisensi [MIT](LICENSE). Semua dependensi langsung berlisensi permi
 | pytest (dev) | MIT |
 | jupyter, nbformat, nbclient, ipykernel (dev) | BSD-3-Clause |
 | matplotlib (dev) | PSF-based (permisif) |
+| huggingface_hub (hanya skrip deploy, opsional) | Apache-2.0 |
+
+**Dependensi transitif yang perlu dicatat:** `certifi` (MPL-2.0) terpasang otomatis sebagai dependensi `requests`/`httpx`, yang dipakai Streamlit dan google-genai. Paket ini hanya berisi bundel sertifikat CA, dipakai apa adanya tanpa modifikasi, dan tidak ikut didistribusikan di repo ini. Tidak ada dependensi GPL/AGPL/LGPL/EPL. Daftar lengkap paket terpasang beserta lisensinya bisa dicetak dengan `pip-licenses` atau `pip show <paket>`.
 
 ## Sitasi
 
-Akan dilengkapi: sumber kalibrasi harga marketplace, library, dan model yang dipakai.
+**Data**
+- Dataset vendor, penawaran, dan transaksi: **sintetis**, dibuat oleh `generator/generate.py` di repo ini (bukan data asli Firaza, bukan ditulis LLM).
+- Rentang harga material dikalibrasi dari listing publik Tokopedia, Lazada, Ruparupa, dan Indotrading (diakses 29 Oktober 2026). Tautan per material ada di [docs/asumsi_data.md](docs/asumsi_data.md#kalibrasi-harga).
+- Kalender musim ramai (Ramadan, Idulfitri, Iduladha) memakai perkiraan tanggal kalender hijriah pemerintah Indonesia 2025–2026 ([core/seasons.py](core/seasons.py)).
+- Konteks masalah: dokumen use case *CP-03 Firaza: Vendor Recommendation & Procurement Assistant*, Dicoding Bootcamp Batch 15.
+
+**Model dan layanan**
+- Model prediksi P(berhasil): Random Forest yang dilatih sendiri (`models/model.joblib`, versi `v1-random_forest`); tidak memakai model pra-latih.
+- Penjelasan: Google Gemini (`gemini-3.5-flash-lite`) lewat Gemini API dan SDK [google-genai](https://github.com/googleapis/python-genai). Gemini hanya menulis penjelasan dari angka hasil ranking.
+- Database: [Supabase](https://supabase.com/) (PostgreSQL). Hosting aplikasi: [Streamlit Community Cloud](https://streamlit.io/cloud).
+
+**Library**
+- Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. *JMLR* 12, 2825–2830.
+- Ke, G. et al. (2017). LightGBM: A Highly Efficient Gradient Boosting Decision Tree. *NeurIPS 30*.
+- Harris, C. R. et al. (2020). Array programming with NumPy. *Nature* 585, 357–362.
+- McKinney, W. (2010). Data Structures for Statistical Computing in Python. *Proc. 9th Python in Science Conf.*, 56–61. (pandas)
+- Breiman, L. (2001). Random Forests. *Machine Learning* 45, 5–32.
+- [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), [Uvicorn](https://www.uvicorn.org/), [Streamlit](https://streamlit.io/), [Plotly](https://plotly.com/python/), [pg8000](https://github.com/tlocke/pg8000), [joblib](https://joblib.readthedocs.io/), [python-dotenv](https://github.com/theskumar/python-dotenv), [pytest](https://pytest.org/), [Jupyter](https://jupyter.org/), [Matplotlib](https://matplotlib.org/).
