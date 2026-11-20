@@ -564,6 +564,7 @@ with tab_riwayat:
                 st.info("Belum ada riwayat. Riwayat muncul setelah Anda menekan **Cari rekomendasi vendor**.")
             else:
                 riwayat["material"] = riwayat["material_id"].map(materials["nama_material"])
+                riwayat["budget"] = pd.to_numeric(riwayat["budget"], errors="coerce")  # None → sel kosong
                 st.dataframe(
                     riwayat[["id", "waktu", "kanal", "material", "qty", "hari_tersedia", "budget", "preset",
                              "jumlah_kandidat", "vendor_teratas", "sumber_penjelasan", "versi_model"]],
