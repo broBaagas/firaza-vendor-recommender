@@ -6,7 +6,7 @@ Jalankan: streamlit run app/streamlit_app.py
 
 import os
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -113,6 +113,22 @@ def rupiah(x: float) -> str:
 
 def persen(x: float) -> str:
     return f"{x * 100:.0f}%"
+
+
+DATE_FMT = "D MMM YYYY"
+
+
+def desimal(x: float, n: int) -> str:
+    """Angka desimal gaya Indonesia (koma), misalnya 0,643."""
+    return f"{x:.{n}f}".replace(".", ",")
+
+
+def as_percent(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """Salinan untuk tampilan: kolom rasio (0–1) dikali 100 agar bisa diformat "%.0f%%" (tanpa 2 desimal)."""
+    out = df.copy()
+    for c in cols:
+        out[c] = out[c] * 100
+    return out
 
 
 BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -260,7 +276,9 @@ with st.expander("ℹ️ Cara pakai"):
 tab_rekomendasi, tab_vendor, tab_riwayat = st.tabs(["Rekomendasi", "Data Vendor", "Riwayat"])
 
 with tab_rekomendasi:
-    c1, c2, c3, c6 = st.columns([2, 1, 1, 1])
+    box = st.container(border=True, key="form_kebutuhan")
+    box.markdown("##### Kebutuhan pengadaan")
+    c1, c2, c3, c6 = box.columns([2, 1, 1, 1])
     material_id = c1.selectbox(
         "Material / jasa", materials.index,
         format_func=lambda m: f"{materials.loc[m, 'nama_material']} ({materials.loc[m, 'satuan']})")
@@ -275,17 +293,21 @@ with tab_rekomendasi:
                                  "saat vendor lebih sering telat.")
     hari_besar_input = holiday_on(tanggal)
     musim_input = peak_period(tanggal)
+    status = [f"Deadline {tgl_id(tanggal + timedelta(days=int(hari)))}."]
     if hari_besar_input:
-        c6.caption(f"🎉 {hari_besar_input}")
+        status.append(f"🎉 Tanggal pesan jatuh di hari besar: {hari_besar_input}.")
     if musim_input:
-        c6.caption(f"🌙 {musim_input['nama']}")
+        status.append(f"🌙 Masuk musim ramai {musim_input['nama']}.")
+    if not hari_besar_input and not musim_input:
+        status.append("Tanggal pesan adalah hari biasa, di luar musim ramai.")
+    box.caption(" ".join(status))
 
-    c4, c5 = st.columns([1, 2])
-    pakai_budget = c4.checkbox("Batasi total budget")
-    budget = c4.number_input("Budget total (Rp)", min_value=1_000, value=10_000_000, step=500_000,
-                             disabled=not pakai_budget)
+    c5, c4 = box.columns([2, 1])
     preset = c5.radio("Prioritas", [*PRESETS, "Kustom"], horizontal=True,
-                      help="Bobot skor: P(berhasil), harga murah, dan lead time cepat.")
+                      help="Bobot skor: peluang berhasil, harga murah, dan lead time cepat.")
+    pakai_budget = c4.checkbox("Batasi total budget")
+    budget = (c4.number_input("Budget total (Rp)", min_value=1_000, value=10_000_000, step=500_000)
+              if pakai_budget else None)
     weights = None
     if preset == "Kustom":
         s1, s2, s3 = c5.columns(3)
@@ -297,9 +319,9 @@ with tab_rekomendasi:
         c5.caption(f"Bobot: peluang berhasil {w['w_berhasil']:.0%}, harga {w['w_harga']:.0%}, "
                    f"kecepatan {w['w_cepat']:.0%}.")
 
-    if st.button("Cari rekomendasi vendor", type="primary"):
+    if box.button("Cari rekomendasi vendor", type="primary"):
         need = {"material_id": material_id, "qty": int(qty), "hari_tersedia": int(hari),
-                "budget": float(budget) if pakai_budget else None, "tanggal": tanggal.isoformat()}
+                "budget": float(budget) if budget else None, "tanggal": tanggal.isoformat()}
         try:
             hasil_baru = recommend(need, preset=preset if weights is None else "Seimbang",
                                    weights=weights, data=data, model=model)
@@ -339,7 +361,7 @@ with tab_rekomendasi:
                     st.metric("Peluang berhasil", persen(r["p_berhasil"]))
                     st.markdown(f"{rupiah(r['harga_satuan'])} per satuan, total {rupiah(r['total_harga'])}  \n"
                                 f"Dikirim dalam {r['lead_time_janji']} hari  \n"
-                                f"Skor {r['skor']:.3f}")
+                                f"Skor {desimal(r['skor'], 3)}")
                     if r["data_terbatas"]:
                         st.caption(f"⚠️ Data terbatas ({r['jumlah_transaksi']} transaksi)")
 
@@ -359,7 +381,8 @@ with tab_rekomendasi:
 
             st.markdown("##### Semua kandidat")
             st.dataframe(
-                ranking[["peringkat", "nama_vendor", "kota", "harga_satuan", "total_harga", "lead_time_janji", "moq",
+                as_percent(ranking, ["p_berhasil", "tingkat_berhasil_10", "berhasil_musim_ramai",
+                                     "tingkat_cacat"])[["peringkat", "nama_vendor", "kota", "harga_satuan", "total_harga", "lead_time_janji", "moq",
                          "p_berhasil", "skor", "jumlah_transaksi", "tingkat_berhasil_10", "berhasil_musim_ramai",
                          "rata_hari_telat", "tingkat_cacat", "data_terbatas"]],
                 hide_index=True, width="stretch",
@@ -371,42 +394,46 @@ with tab_rekomendasi:
                     "total_harga": st.column_config.NumberColumn("Total (Rp)", format="localized"),
                     "lead_time_janji": st.column_config.NumberColumn("Lead time (hari)"),
                     "moq": "MOQ",
-                    "p_berhasil": st.column_config.ProgressColumn("P(berhasil)", min_value=0, max_value=1,
-                                                                  format="percent"),
+                    "p_berhasil": st.column_config.ProgressColumn("Peluang berhasil", min_value=0, max_value=100,
+                                                                  format="%.0f%%"),
                     "skor": st.column_config.NumberColumn("Skor", format="%.3f"),
                     "jumlah_transaksi": "Transaksi",
-                    "tingkat_berhasil_10": st.column_config.NumberColumn("Berhasil (10 terakhir)", format="percent"),
+                    "tingkat_berhasil_10": st.column_config.NumberColumn("Berhasil (10 terakhir)", format="%.0f%%"),
                     "berhasil_musim_ramai": st.column_config.NumberColumn("Berhasil saat musim ramai",
-                                                                          format="percent"),
+                                                                          format="%.0f%%"),
                     "rata_hari_telat": st.column_config.NumberColumn("Rata telat (hari)", format="%.1f"),
-                    "tingkat_cacat": st.column_config.NumberColumn("Tingkat cacat", format="percent"),
+                    "tingkat_cacat": st.column_config.NumberColumn("Tingkat cacat", format="%.1f%%"),
                     "data_terbatas": "Data terbatas",
                 },
             )
 
 with tab_vendor:
-    st.caption("Ringkasan rekam jejak seluruh vendor dari data transaksi (lihat saja).")
+    st.markdown("##### Rekam jejak vendor")
+    st.caption("Ringkasan kinerja setiap vendor dari seluruh transaksi.")
     stats = vendor_stats(data)
-    kategori = st.multiselect("Kategori", sorted(stats["kategori"].unique()), default=sorted(stats["kategori"].unique()))
+    kategori = st.segmented_control("Kategori", ["Semua", *sorted(stats["kategori"].unique())], default="Semua",
+                                    key="kategori_vendor")
+    tampil = stats if kategori in (None, "Semua") else stats[stats["kategori"] == kategori]
     st.dataframe(
-        stats[stats["kategori"].isin(kategori)][
+        as_percent(tampil, ["rata_cacat", "tingkat_berhasil"])[
             ["vendor_id", "nama_vendor", "kategori", "kota", "tanggal_bergabung", "transaksi", "tingkat_berhasil",
              "rata_hari_telat", "rata_cacat", "pesanan_terakhir", "material"]],
         hide_index=True, width="stretch",
         column_config={
             "vendor_id": "ID", "nama_vendor": "Vendor", "kategori": "Kategori", "kota": "Kota",
-            "tanggal_bergabung": st.column_config.DateColumn("Bergabung"),
+            "tanggal_bergabung": st.column_config.DateColumn("Bergabung", format=DATE_FMT),
             "transaksi": "Transaksi",
-            "tingkat_berhasil": st.column_config.ProgressColumn("Tingkat berhasil", min_value=0, max_value=1,
-                                                                format="percent"),
+            "tingkat_berhasil": st.column_config.ProgressColumn("Tingkat berhasil", min_value=0, max_value=100,
+                                                                format="%.0f%%"),
             "rata_hari_telat": st.column_config.NumberColumn("Rata telat (hari)", format="%.1f"),
-            "rata_cacat": st.column_config.NumberColumn("Rata cacat", format="percent"),
-            "pesanan_terakhir": st.column_config.DateColumn("Pesanan terakhir"),
+            "rata_cacat": st.column_config.NumberColumn("Rata cacat", format="%.1f%%"),
+            "pesanan_terakhir": st.column_config.DateColumn("Pesanan terakhir", format=DATE_FMT),
             "material": "Material yang ditawarkan",
         },
     )
 
-    st.markdown("##### Daftar penawaran per material")
+    st.markdown("##### Penawaran per material")
+    st.caption("Harga, lead time yang dijanjikan, dan jumlah minimum pesanan (MOQ) tiap vendor, dari yang termurah.")
     mat = st.selectbox("Material", materials.index, key="mat_vendor",
                        format_func=lambda x: materials.loc[x, "nama_material"])
     offers = data["offers"][data["offers"]["material_id"] == mat].merge(
@@ -420,6 +447,7 @@ with tab_vendor:
     )
 
     st.markdown("##### Histori transaksi per vendor")
+    st.caption("Setiap pesanan ke satu vendor: kapan dipesan, kapan datang, dan berapa yang cacat.")
     tx_all = prepared_transactions(data)
     vendors = data["vendors"].set_index("vendor_id")
     h1, h2 = st.columns(2)
@@ -446,22 +474,22 @@ with tab_vendor:
             berhasil=lambda d: d["berhasil"].astype(bool),
         )
         st.dataframe(
-            tabel[["transaksi_id", "tanggal_pesan", "material", "qty", "harga_satuan", "total_harga",
+            as_percent(tabel, ["persen_cacat"])[["transaksi_id", "tanggal_pesan", "material", "qty", "harga_satuan", "total_harga",
                    "lead_time_janji", "deadline", "tanggal_datang", "telat_deadline", "qty_cacat", "persen_cacat",
                    "musim_ramai", "berhasil"]],
             hide_index=True, width="stretch", height=320,
             column_config={
                 "transaksi_id": "ID",
-                "tanggal_pesan": st.column_config.DateColumn("Dipesan"),
+                "tanggal_pesan": st.column_config.DateColumn("Dipesan", format=DATE_FMT),
                 "material": "Material", "qty": "Jumlah",
                 "harga_satuan": st.column_config.NumberColumn("Harga/satuan (Rp)", format="localized"),
                 "total_harga": st.column_config.NumberColumn("Total (Rp)", format="localized"),
                 "lead_time_janji": "Janji (hari)",
-                "deadline": st.column_config.DateColumn("Deadline"),
-                "tanggal_datang": st.column_config.DateColumn("Datang"),
+                "deadline": st.column_config.DateColumn("Deadline", format=DATE_FMT),
+                "tanggal_datang": st.column_config.DateColumn("Datang", format=DATE_FMT),
                 "telat_deadline": st.column_config.NumberColumn("Telat (hari)"),
                 "qty_cacat": "Cacat (pcs)",
-                "persen_cacat": st.column_config.NumberColumn("Cacat", format="percent"),
+                "persen_cacat": st.column_config.NumberColumn("Cacat", format="%.1f%%"),
                 "musim_ramai": "Musim ramai",
                 "berhasil": "Berhasil",
             },
@@ -470,7 +498,8 @@ with tab_vendor:
                    "untuk menghitung rekam jejak vendor (hanya transaksi yang sudah datang sebelum tanggal pesanan).")
 
 with tab_riwayat:
-    st.caption("Riwayat permintaan rekomendasi dari aplikasi ini dan dari API, disimpan di database (Supabase Postgres).")
+    st.markdown("##### Riwayat rekomendasi")
+    st.caption("Setiap permintaan rekomendasi dari aplikasi ini dan dari API tersimpan di database (Supabase Postgres).")
     if not storage.is_configured():
         st.info("Penyimpanan riwayat belum dikonfigurasi (DATABASE_URL kosong).")
     else:
@@ -481,7 +510,7 @@ with tab_riwayat:
             st.error(f"Gagal membaca riwayat: {storage.describe_error(e)}")
         else:
             if riwayat.empty:
-                st.write("Belum ada riwayat.")
+                st.info("Belum ada riwayat. Riwayat muncul setelah Anda menekan **Cari rekomendasi vendor**.")
             else:
                 riwayat["material"] = riwayat["material_id"].map(materials["nama_material"])
                 st.dataframe(
