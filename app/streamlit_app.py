@@ -50,30 +50,91 @@ def app_css(mode: str) -> str:
 
 APP_CSS = """
 <style>
-[data-testid="stMainBlockContainer"] { max-width: 1120px; padding-top: 3rem; }
+[data-testid="stMainBlockContainer"] { max-width: 1120px; padding-top: 3.5rem; padding-bottom: 5rem; }
 [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] p { color: __PAPER__ !important; }
-.brand {
-    color: __MUTED__;
-    font-weight: 700;
-    font-size: 0.95rem;
-    margin: 0 0 0.35rem 0;
+[data-testid="stBaseButton-primary"] { padding: 0.6rem 1.4rem; font-weight: 700; }
+[data-testid="stBaseButton-primary"] p { font-weight: 700; }
+
+/* Header ringkas: alat kerja, form harus langsung terlihat. */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 0.6rem 0; }
+.brand { color: __INK__; font-weight: 800; font-size: 0.95rem; letter-spacing: -0.01em; }
+.tag {
+    color: __MUTED__; font-size: 0.75rem; font-weight: 600;
+    border: 1px solid currentColor; border-radius: 999px; padding: 0.05rem 0.55rem;
 }
 h1.hero-title {
-    font-size: clamp(1.9rem, 3.6vw, 2.75rem);
-    line-height: 1.12;
+    font-size: clamp(1.7rem, 3vw, 2.3rem);
+    line-height: 1.15;
     font-weight: 800;
-    letter-spacing: -0.02em;
-    max-width: 22ch;
+    letter-spacing: -0.025em;
+    max-width: 24ch;
     padding: 0;
-    margin: 0 0 0.75rem 0;
+    margin: 0 0 0.5rem 0;
 }
-.hero-sub {
-    font-size: 1.05rem;
-    line-height: 1.6;
-    max-width: 68ch;
-    margin: 0 0 0.25rem 0;
+.hero-sub { color: __MUTED__; font-size: 1rem; line-height: 1.6; max-width: 70ch; margin: 0 0 1rem 0; }
+.hero-sub b { color: __INK__; }
+
+/* Tab utama lebih tegas. */
+[data-baseweb="tab-list"] { gap: 1.5rem; }
+[data-baseweb="tab"] p { font-size: 1rem; font-weight: 600; }
+
+/* Judul bagian: dipisah dengan ruang, bukan garis. */
+[data-testid="stMarkdownContainer"] h5 {
+    font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; padding: 1.25rem 0 0.35rem 0;
 }
-.st-key-form_kebutuhan { background: __SOFT__; }
+.st-key-form_kebutuhan [data-testid="stMarkdownContainer"] h5 { padding-top: 0; }
+
+/* Angka: tabular agar mudah dibandingkan. */
+[data-testid="stMetricValue"] { font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+[data-testid="stMetricLabel"] p { color: __MUTED__; font-weight: 600; }
+
+/* Panel form: satu bidang abu, input putih di dalamnya (tanpa bingkai bertumpuk). */
+.st-key-form_kebutuhan {
+    background: __SOFT__; border-radius: 0.9rem; padding: 1.5rem 1.5rem 1.25rem 1.5rem;
+}
+.st-key-form_kebutuhan [data-baseweb="select"] > div,
+.st-key-form_kebutuhan [data-testid="stNumberInputContainer"],
+.st-key-form_kebutuhan [data-baseweb="input"],
+.st-key-form_kebutuhan [data-baseweb="base-input"],
+.st-key-form_kebutuhan [data-baseweb="input"] > div,
+.st-key-form_kebutuhan input,
+.st-key-form_kebutuhan [data-testid="stNumberInputContainer"] button { background: __PAPER__ !important; }
+[data-testid="stButtonGroup"] > div { flex-wrap: wrap; }
+
+/* Kalender dan penjelasan: bidang lembut / teks lepas, tanpa bingkai. */
+.st-key-kalender { background: __SOFT__; border-radius: 0.9rem; padding: 1.1rem 1.25rem; }
+.st-key-penjelasan { max-width: 78ch; }
+.st-key-penjelasan [data-testid="stMarkdownContainer"] p,
+.st-key-penjelasan [data-testid="stMarkdownContainer"] li { line-height: 1.65; }
+
+/* Kartu vendor. */
+.st-key-kartu_1, .st-key-kartu_2, .st-key-kartu_3 {
+    border-radius: 0.9rem; padding: 1.25rem; height: 100%;
+    animation: naik 0.32s ease-out both;
+}
+.st-key-kartu_2 { animation-delay: 0.06s; }
+.st-key-kartu_3 { animation-delay: 0.12s; }
+@keyframes naik { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+    .st-key-kartu_1, .st-key-kartu_2, .st-key-kartu_3 { animation: none; }
+}
+.vname { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.015em; line-height: 1.2; margin-top: 0.35rem; }
+.vcity { color: __MUTED__; font-size: 0.85rem; }
+.st-key-kartu_1 [data-testid="stMetricValue"] { font-size: 2.6rem; }
+.pbar { position: relative; height: 6px; border-radius: 3px; background: rgba(128,128,128,0.25); margin: -0.25rem 0 0.15rem 0; }
+.pbar span { display: block; height: 100%; border-radius: 3px; background: currentColor; }
+.pbar i { position: absolute; left: 80%; top: -4px; bottom: -4px; width: 1.5px; background: currentColor; opacity: 0.45; }
+.pbar-note { font-size: 0.72rem; opacity: 0.6; }
+.spec { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; margin-top: 0.25rem; }
+.spec span { display: block; font-size: 0.75rem; opacity: 0.6; font-weight: 600; }
+.spec b { display: block; font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+    [data-testid="stMainBlockContainer"] { padding-top: 3rem; }
+    .st-key-form_kebutuhan { padding: 1.1rem; }
+    input, textarea { font-size: 16px !important; }
+    .st-key-form_kebutuhan [data-testid="stBaseButton-primary"] { width: 100%; }
+}
 .st-key-kartu_1 {
     background: __INK__;
     border-color: __INK__ !important;
@@ -182,6 +243,20 @@ def tgl_id(x) -> str:
     return f"{d.day} {BULAN[d.month - 1]} {d.year}"
 
 
+def card_details(r) -> str:
+    """Isi kartu vendor: bar peluang berhasil (tanda di 80%) dan empat angka kunci dalam grid 2×2."""
+    return (
+        f'<div class="pbar"><span style="width:{r["p_berhasil"] * 100:.0f}%"></span><i></i></div>'
+        '<div class="pbar-note">Garis tipis = 80%, batas umumnya aman</div>'
+        '<div class="spec">'
+        f'<div><span>Harga per satuan</span><b>{rupiah(r["harga_satuan"])}</b></div>'
+        f'<div><span>Total</span> <b>{rupiah(r["total_harga"])}</b></div>'
+        f'<div><span>Dikirim dalam</span><b>{r["lead_time_janji"]} hari</b></div>'
+        f'<div><span>Skor</span> <b>{desimal(r["skor"], 3)}</b></div>'
+        '</div>'
+    )
+
+
 def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
     p = PALETTE[MODE]
     fig = go.Figure()
@@ -189,18 +264,26 @@ def tradeoff_chart(ranking: pd.DataFrame, top_k: int) -> go.Figure:
         d = ranking[(ranking["peringkat"] <= top_k) == is_top]
         fig.add_trace(go.Scatter(
             x=d["harga_satuan"], y=d["p_berhasil"], mode="markers+text", name=name,
-            text=d["nama_vendor"], textposition="top center",
-            marker={"size": 12, "color": color, "line": {"width": 2, "color": p["paper"]}},
+            text=d["nama_vendor"],
+            # Label bergantian atas/bawah agar vendor dengan harga berdekatan tidak saling menimpa.
+            textposition=["top center" if i % 2 == 0 else "bottom center" for i in range(len(d))],
+            textfont={"size": 12 if is_top else 11, "color": p["ink"] if is_top else p["muted"]},
+            marker={"size": 14 if is_top else 11, "color": color, "line": {"width": 2, "color": p["paper"]}},
             customdata=d[["peringkat", "lead_time_janji", "skor"]],
             hovertemplate=("<b>%{text}</b> (peringkat %{customdata[0]})<br>Harga: Rp%{x:,.0f}<br>"
                            "P(berhasil): %{y:.0%}<br>Lead time: %{customdata[1]} hari<br>"
                            "Skor: %{customdata[2]:.3f}<extra></extra>"),
         ))
+    y_min = max(0.0, min(ranking["p_berhasil"].min(), AMBANG_AMAN) - 0.1)
+    fig.add_hline(y=AMBANG_AMAN, line={"color": p["muted"], "width": 1, "dash": "dot"},
+                  annotation_text="80% (aman)", annotation_position="bottom right",
+                  annotation_font={"color": p["muted"], "size": 11})
     fig.update_layout(
-        height=380, margin={"l": 10, "r": 10, "t": 30, "b": 10},
-        xaxis_title="Harga satuan (Rp)", yaxis_title="P(berhasil)",
-        yaxis={"tickformat": ".0%", "range": [0, 1.08]}, xaxis={"tickformat": ",.0f"},
-        legend={"orientation": "h", "y": 1.12, "x": 0}, hoverlabel={"align": "left"},
+        height=400, margin={"l": 10, "r": 10, "t": 30, "b": 10},
+        xaxis_title="Harga satuan (Rp), makin kiri makin murah", yaxis_title="Peluang berhasil",
+        yaxis={"tickformat": ".0%", "range": [y_min, 1.03], "gridcolor": "rgba(128,128,128,0.15)"},
+        xaxis={"tickformat": ",.0f", "gridcolor": "rgba(128,128,128,0.15)"},
+        legend={"orientation": "h", "y": 1.1, "x": 0}, hoverlabel={"align": "left"},
     )
     return fig
 
@@ -259,7 +342,7 @@ def calendar_section(hasil: dict) -> None:
                      "berhasil di bawah belum memperhitungkannya. Karena itu disarankan memilih vendor paling aman.")
 
     aman = hasil.get("paling_aman")
-    with st.container(border=True):
+    with st.container(key="kalender"):
         st.markdown("  \n".join(lines))
         if k["waktu_rawan"] and aman:
             v1 = hasil["ranking"][0]
@@ -317,17 +400,17 @@ materials = data["materials"].set_index("material_id")
 MODE = theme_mode()
 st.markdown(app_css(MODE), unsafe_allow_html=True)
 st.markdown(
-    '<p class="brand">Firaza Vendor Recommender</p>'
+    '<div class="topbar"><span class="brand">Firaza Vendor Recommender</span>'
+    '<span class="tag">Data sintetis untuk demonstrasi</span></div>'
     '<h1 class="hero-title">Vendor mana yang paling aman untuk pesanan ini?</h1>'
-    '<p class="hero-sub">Isi kebutuhan Anda. Model memperkirakan peluang tiap vendor mengirim '
-    '<b>tepat deadline</b> dengan <b>cacat paling banyak 3%</b>, lalu mengurutkannya bersama harga dan '
-    'kecepatan. Keputusan akhir tetap di tangan Anda.</p>',
+    '<p class="hero-sub">Model memperkirakan peluang tiap vendor mengirim <b>tepat deadline</b> dengan '
+    '<b>cacat paling banyak 3%</b>, lalu mengurutkannya bersama harga dan kecepatan. '
+    'Keputusan akhir tetap di tangan Anda.</p>',
     unsafe_allow_html=True)
-st.caption("Data vendor dan transaksi di aplikasi ini sintetis, dibuat untuk demonstrasi.")
 
 REPO_URL = "https://github.com/broBaagas/firaza-vendor-recommender"
 
-with st.expander("ℹ️ Cara pakai"):
+with st.expander("Cara pakai", icon=":material/help:"):
     st.markdown(
         "1. **Rekomendasi**: pilih material atau jasa, isi jumlah, sisa hari sampai deadline, dan tanggal pesan "
         "(opsional: batasi total budget), pilih prioritas, lalu klik **Cari rekomendasi vendor**. "
@@ -369,7 +452,7 @@ with st.expander("ℹ️ Cara pakai"):
 tab_rekomendasi, tab_vendor, tab_riwayat = st.tabs(["Rekomendasi", "Data Vendor", "Riwayat"])
 
 with tab_rekomendasi:
-    box = st.container(border=True, key="form_kebutuhan")
+    box = st.container(key="form_kebutuhan")
     box.markdown("##### Kebutuhan pengadaan")
     c1, c2, c3, c6 = box.columns([2, 1, 1, 1])
     material_id = c1.selectbox(
@@ -396,7 +479,7 @@ with tab_rekomendasi:
         status.append("Tanggal pesan adalah hari biasa, di luar musim ramai.")
     box.caption(" ".join(status))
 
-    c5, c4 = box.columns([3, 2], gap="large")
+    c5, c4 = box.columns([3, 2], gap="medium")
     preset = c5.segmented_control(
         "Prioritas", [*PRESETS, "Kustom"], default="Seimbang", key="prioritas",
         help="Menentukan bobot skor: peluang berhasil, harga murah, dan lead time cepat.") or "Seimbang"
@@ -431,6 +514,9 @@ with tab_rekomendasi:
                                     riwayat_id=storage.safe_save(hasil_baru, penjelasan_baru, "streamlit"))
 
     hasil = st.session_state.get("hasil")
+    if not hasil:
+        st.caption("Hasil muncul di bawah form ini: 3 vendor teratas, kalender pesanan, penjelasan, grafik, "
+                   "dan tabel semua kandidat.")
     if hasil:
         st.divider()
         if not hasil["ranking"]:
@@ -446,18 +532,12 @@ with tab_rekomendasi:
             cols = st.columns(min(3, len(ranking)))
             for col, (_, r) in zip(cols, ranking.head(3).iterrows()):
                 with col.container(border=True, key=f"kartu_{r['peringkat']}"):
-                    if r["peringkat"] == 1:
-                        st.markdown('<span class="label-rekomendasi">Rekomendasi</span>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<span class="peringkat-lain">Peringkat {r["peringkat"]}</span>',
-                                    unsafe_allow_html=True)
-                    st.markdown(f"#### {r['nama_vendor']}")
-                    st.caption(r["kota"])
+                    label = ('<span class="label-rekomendasi">Rekomendasi</span>' if r["peringkat"] == 1 else
+                             f'<span class="peringkat-lain">Peringkat {r["peringkat"]}</span>')
+                    st.markdown(f'{label}<div class="vname">{r["nama_vendor"]}</div>'
+                                f'<div class="vcity">{r["kota"]}</div>', unsafe_allow_html=True)
                     st.metric("Peluang berhasil", persen(r["p_berhasil"]))
-                    st.markdown(f"{rupiah(r['harga_satuan'])} per satuan  \n"
-                                f"Total {rupiah(r['total_harga'])}  \n"
-                                f"Dikirim dalam {r['lead_time_janji']} hari  \n"
-                                f"Skor {desimal(r['skor'], 3)}")
+                    st.markdown(card_details(r), unsafe_allow_html=True)
                     if r["data_terbatas"]:
                         st.caption(f"⚠️ Data terbatas ({r['jumlah_transaksi']} transaksi)")
 
@@ -465,7 +545,7 @@ with tab_rekomendasi:
 
             st.markdown("##### Penjelasan")
             penjelasan = st.session_state.get("penjelasan") or get_explanation(hasil)
-            with st.container(border=True):
+            with st.container(key="penjelasan"):
                 st.markdown(to_markdown(penjelasan))
             caption = explanation_caption(penjelasan)
             if st.session_state.get("riwayat_id"):
